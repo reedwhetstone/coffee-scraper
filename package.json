@@ -1,0 +1,15 @@
+{
+  "name": "coffee-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "dotenv": "latest",
+    "tsx": "^4.19.2",
+    "playwright": "latest"
+  },
+  "scripts": {
+    "scrape": "tsx ./scrape/newcoffeescript.ts",
+    "update-prices": "tsx ./scrape/updatePrices.ts"
+  }
+}
