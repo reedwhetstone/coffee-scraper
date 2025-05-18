@@ -684,44 +684,67 @@ async function updateDatabase(source: CoffeeSource) {
     });
     console.log(`[${source.name}] Found ${inStockUrls.length} total products on the site`);
 
-    // Update existing products for this source
-    const { data: dbProducts, error: fetchError } = await supabase
+    // Issue #1: Handle empty URL collection - abort if no URLs found
+    if (inStockUrls.length === 0) {
+      console.log(`[${source.name}] WARNING: No URLs collected. This appears to be a failed run.`);
+      console.log(`[${source.name}] Aborting update to preserve current stocked status in database.`);
+      return { success: false, reason: 'No URLs collected' };
+    }
+
+    // Get existing stocked products for this source
+    const { data: stockedDbProducts, error: fetchStockedError } = await supabase
       .from('coffee_catalog')
       .select('link')
-      .eq('source', source.name);
+      .eq('source', source.name)
+      .eq('stocked', true);
 
-    if (fetchError) throw fetchError;
-    console.log(`[${source.name}] Found ${dbProducts?.length || 0} products in database`);
+    if (fetchStockedError) throw fetchStockedError;
+    console.log(`[${source.name}] Found ${stockedDbProducts?.length || 0} stocked products in database`);
 
-    console.log(
-      `[${source.name}] Step 2: Setting all ${dbProducts?.length || 0} existing db products to stocked = false`
-    );
-    const { error: updateError } = await supabase
-      .from('coffee_catalog')
-      .update({ stocked: false })
-      .eq('source', source.name);
+    // Create a set of URLs that are currently in stock
+    const inStockUrlSet = new Set(inStockUrls);
 
-    if (updateError) throw updateError;
+    // Identify URLs that are no longer stocked (in DB as stocked but not found on site)
+    const noLongerStockedUrls =
+      stockedDbProducts?.filter((product) => !inStockUrlSet.has(product.link)).map((product) => product.link) || [];
+
+    console.log(`[${source.name}] Step 2: Marking ${noLongerStockedUrls.length} products as no longer stocked`);
+
+    // Update only the products that are no longer stocked
+    if (noLongerStockedUrls.length > 0) {
+      const { error: updateError } = await supabase
+        .from('coffee_catalog')
+        .update({
+          stocked: false,
+          unstocked_date: new Date().toISOString(), // Set unstocked_date when marking as no longer stocked
+          last_updated: new Date().toISOString(), // Update last_updated when changing stocked status
+        })
+        .in('link', noLongerStockedUrls)
+        .eq('source', source.name);
+
+      if (updateError) throw updateError;
+    }
 
     // Create a map of URL to price for updates
     const priceMap = new Map(productsData.map((item) => [item.url, item.price]));
 
-    // Then update stocked status and prices for in-stock items
+    // Update prices for in-stock items (don't need to update stocked status for existing items)
+    console.log(`[${source.name}] Step 3: Updating prices for in-stock items`);
     for (const url of inStockUrls) {
       const price = priceMap.get(url);
-      const { error: stockedError } = await supabase
+      const { error: priceUpdateError } = await supabase
         .from('coffee_catalog')
         .update({
-          stocked: true,
+          stocked: true, // Ensure it's marked as stocked
           cost_lb: price,
         })
         .eq('link', url)
         .eq('source', source.name);
 
-      if (stockedError) throw stockedError;
+      if (priceUpdateError) throw priceUpdateError;
     }
 
-    // Get new URLs to process
+    // Get new URLs to process (URLs not already in the database)
     const newUrls = await checkExistingUrls(inStockUrls);
 
     // Add debugging to verify the updates
@@ -736,40 +759,44 @@ async function updateDatabase(source: CoffeeSource) {
     console.log(`[${source.name}] Number of new URLs to process: ${newUrls.length}`);
 
     // Process new products
-    for (const url of newUrls) {
-      console.log(`[${source.name}] Step 3: Processing URL: ${url}`);
-      const price = priceMap.get(url) ?? null;
-      const scrapedData = await source.scrapeUrl(url, price);
+    if (newUrls.length > 0) {
+      console.log(`[${source.name}] Step 4: Processing new URLs`);
+      for (const url of newUrls) {
+        console.log(`[${source.name}] Processing URL: ${url}`);
+        const price = priceMap.get(url) ?? null;
+        const scrapedData = await source.scrapeUrl(url, price);
 
-      if (scrapedData) {
-        const { error } = await supabase.from('coffee_catalog').insert({
-          name: scrapedData.productName,
-          score_value: scrapedData.scoreValue,
-          arrival_date: scrapedData.arrivalDate,
-          region: scrapedData.region,
-          processing: scrapedData.processing,
-          drying_method: scrapedData.dryingMethod,
-          lot_size: scrapedData.lotSize,
-          bag_size: scrapedData.bagSize,
-          packaging: scrapedData.packaging,
-          cultivar_detail: scrapedData.cultivarDetail,
-          grade: scrapedData.grade,
-          appearance: scrapedData.appearance,
-          roast_recs: scrapedData.roastRecs,
-          type: scrapedData.type,
-          link: scrapedData.url,
-          description_long: scrapedData.descriptionLong,
-          description_short: scrapedData.descriptionShort,
-          cupping_notes: scrapedData.cuppingNotes,
-          farm_notes: scrapedData.farmNotes,
-          last_updated: new Date().toISOString(),
-          source: source.name,
-          cost_lb: scrapedData.cost_lb,
-          stocked: true,
-        });
+        if (scrapedData) {
+          const { error } = await supabase.from('coffee_catalog').insert({
+            name: scrapedData.productName,
+            score_value: scrapedData.scoreValue,
+            arrival_date: scrapedData.arrivalDate,
+            region: scrapedData.region,
+            processing: scrapedData.processing,
+            drying_method: scrapedData.dryingMethod,
+            lot_size: scrapedData.lotSize,
+            bag_size: scrapedData.bagSize,
+            packaging: scrapedData.packaging,
+            cultivar_detail: scrapedData.cultivarDetail,
+            grade: scrapedData.grade,
+            appearance: scrapedData.appearance,
+            roast_recs: scrapedData.roastRecs,
+            type: scrapedData.type,
+            link: scrapedData.url,
+            description_long: scrapedData.descriptionLong,
+            description_short: scrapedData.descriptionShort,
+            cupping_notes: scrapedData.cuppingNotes,
+            farm_notes: scrapedData.farmNotes,
+            last_updated: new Date().toISOString(), // Initial creation is an update
+            stocked_date: new Date().toISOString(), // Set stocked_date when first adding to inventory
+            source: source.name,
+            cost_lb: scrapedData.cost_lb,
+            stocked: true,
+          });
 
-        if (error) throw error;
-        console.log(`[${source.name}] Successfully inserted product: ${scrapedData.productName}`);
+          if (error) throw error;
+          console.log(`[${source.name}] Successfully inserted product: ${scrapedData.productName}`);
+        }
       }
     }
 
@@ -847,7 +874,11 @@ if (isMainModule) {
         updateDatabase(source)
           .then((result) => {
             if (!result.success) {
-              console.log(`${source.name}: failed to update db`);
+              if (result.reason === 'No URLs collected') {
+                console.log(`${source.name}: No URLs collected, database unchanged.`);
+              } else {
+                console.log(`${source.name}: failed to update db`);
+              }
             } else {
               console.log(`${source.name}: Completed successfully`);
             }
@@ -877,9 +908,16 @@ if (isMainModule) {
     updateDatabase(source)
       .then((result) => {
         if (!result.success) {
-          console.log(`${sourceName} failed to update`);
+          if (result.reason === 'No URLs collected') {
+            console.log(`${sourceName}: No URLs collected, database unchanged.`);
+          } else {
+            console.log(`${sourceName} failed to update`);
+          }
+          process.exit(0);
+        } else {
+          console.log(`${sourceName}: Update completed successfully`);
+          process.exit(0);
         }
-        process.exit(0);
       })
       .catch((error) => {
         console.error('Error:', error);
