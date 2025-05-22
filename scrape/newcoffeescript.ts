@@ -35,6 +35,55 @@ interface CoffeeSource {
   baseUrl: string;
 }
 
+// Add this after the interface definitions
+// Logger to collect logs during execution
+class LogCollector {
+  private logs: Record<string, Record<string, string[]>> = {};
+
+  // Add a log entry for a specific step and source
+  addLog(step: string, source: string, message: string) {
+    if (!this.logs[step]) {
+      this.logs[step] = {};
+    }
+    if (!this.logs[step][source]) {
+      this.logs[step][source] = [];
+    }
+
+    this.logs[step][source].push(message);
+
+    // Also print to console for real-time debugging if needed
+    console.log(`[${source}] ${message}`);
+  }
+
+  // Print all collected logs in a consolidated format
+  printConsolidatedLogs() {
+    console.log('\n===== COFFEE SCRAPER EXECUTION SUMMARY =====\n');
+
+    // Get all steps in order
+    const steps = Object.keys(this.logs).sort();
+
+    for (const step of steps) {
+      console.log(`${step}:`);
+
+      // Get all sources for this step
+      const sources = Object.keys(this.logs[step]);
+
+      // Print each source's logs for this step
+      for (const source of sources) {
+        for (const message of this.logs[step][source]) {
+          console.log(`  [${source}] ${message}`);
+        }
+      }
+      console.log(''); // Add blank line between steps
+    }
+
+    console.log('===== END OF SUMMARY =====\n');
+  }
+}
+
+// Create a global logger instance
+const logger = new LogCollector();
+
 /**
  * Scrolls down the page until no more content is loaded.
  * @param {Page} page - The Playwright page object
@@ -666,7 +715,7 @@ class BodhiLeafSource implements CoffeeSource {
 // Modified database update function to handle multiple sources
 async function updateDatabase(source: CoffeeSource) {
   try {
-    console.log(`[${source.name}] Step 1: Collecting all product URLs`);
+    logger.addLog('Step 1: Collecting product URLs', source.name, 'Starting collection of product URLs');
     const productsData = await source.collectInitUrlsData();
     const unfilteredUrls = productsData.map((item) => item.url);
     const inStockUrls = unfilteredUrls.filter((url) => {
@@ -682,12 +731,24 @@ async function updateDatabase(source: CoffeeSource) {
         !url.includes('steves-favorites')
       );
     });
-    console.log(`[${source.name}] Found ${inStockUrls.length} total products on the site`);
+    logger.addLog(
+      'Step 1: Collecting product URLs',
+      source.name,
+      `Found ${inStockUrls.length} total products on the site`
+    );
 
     // Issue #1: Handle empty URL collection - abort if no URLs found
     if (inStockUrls.length === 0) {
-      console.log(`[${source.name}] WARNING: No URLs collected. This appears to be a failed run.`);
-      console.log(`[${source.name}] Aborting update to preserve current stocked status in database.`);
+      logger.addLog(
+        'Step 1: Collecting product URLs',
+        source.name,
+        'WARNING: No URLs collected. This appears to be a failed run.'
+      );
+      logger.addLog(
+        'Step 1: Collecting product URLs',
+        source.name,
+        'Aborting update to preserve current stocked status in database.'
+      );
       return { success: false, reason: 'No URLs collected' };
     }
 
@@ -699,7 +760,11 @@ async function updateDatabase(source: CoffeeSource) {
       .eq('stocked', true);
 
     if (fetchStockedError) throw fetchStockedError;
-    console.log(`[${source.name}] Found ${stockedDbProducts?.length || 0} stocked products in database`);
+    logger.addLog(
+      'Step 1: Collecting product URLs',
+      source.name,
+      `Found ${stockedDbProducts?.length || 0} stocked products in database`
+    );
 
     // Create a set of URLs that are currently in stock
     const inStockUrlSet = new Set(inStockUrls);
@@ -708,7 +773,11 @@ async function updateDatabase(source: CoffeeSource) {
     const noLongerStockedUrls =
       stockedDbProducts?.filter((product) => !inStockUrlSet.has(product.link)).map((product) => product.link) || [];
 
-    console.log(`[${source.name}] Step 2: Marking ${noLongerStockedUrls.length} products as no longer stocked`);
+    logger.addLog(
+      'Step 2: Updating stocked status',
+      source.name,
+      `Marking ${noLongerStockedUrls.length} products as no longer stocked`
+    );
 
     // Update only the products that are no longer stocked
     if (noLongerStockedUrls.length > 0) {
@@ -729,7 +798,7 @@ async function updateDatabase(source: CoffeeSource) {
     const priceMap = new Map(productsData.map((item) => [item.url, item.price]));
 
     // Update prices for in-stock items (don't need to update stocked status for existing items)
-    console.log(`[${source.name}] Step 3: Updating prices for in-stock items`);
+    logger.addLog('Step 3: Updating prices', source.name, `Updating prices for ${inStockUrls.length} in-stock items`);
     for (const url of inStockUrls) {
       const price = priceMap.get(url);
       const { error: priceUpdateError } = await supabase
@@ -755,14 +824,20 @@ async function updateDatabase(source: CoffeeSource) {
       .eq('stocked', true);
 
     if (checkError) throw checkError;
-    console.log(`[${source.name}] Products now marked as stocked in DB: ${stillStocked?.length || 0}`);
-    console.log(`[${source.name}] Number of new URLs to process: ${newUrls.length}`);
+    logger.addLog(
+      'Step 4: Final status',
+      source.name,
+      `Products now marked as stocked in DB: ${stillStocked?.length || 0}`
+    );
+    logger.addLog('Step 4: Final status', source.name, `Number of new URLs to process: ${newUrls.length}`);
 
     // Process new products
     if (newUrls.length > 0) {
-      console.log(`[${source.name}] Step 4: Processing new URLs`);
+      logger.addLog('Step 5: Processing new products', source.name, `Processing ${newUrls.length} new URLs`);
+      let newProductsAdded = 0;
+
       for (const url of newUrls) {
-        console.log(`[${source.name}] Processing URL: ${url}`);
+        logger.addLog('Step 5: Processing new products', source.name, `Processing URL: ${url}`);
         const price = priceMap.get(url) ?? null;
         const scrapedData = await source.scrapeUrl(url, price);
 
@@ -795,14 +870,26 @@ async function updateDatabase(source: CoffeeSource) {
           });
 
           if (error) throw error;
-          console.log(`[${source.name}] Successfully inserted product: ${scrapedData.productName}`);
+          newProductsAdded++;
+          logger.addLog(
+            'Step 5: Processing new products',
+            source.name,
+            `Successfully inserted product: ${scrapedData.productName}`
+          );
         }
       }
+
+      logger.addLog(
+        'Step 5: Processing new products',
+        source.name,
+        `Added ${newProductsAdded} new products to the database`
+      );
     }
 
-    console.log(`[${source.name}] Database update complete`);
+    logger.addLog('Step 6: Completion', source.name, 'Database update complete');
     return { success: true };
   } catch (error) {
+    logger.addLog('Error', source.name, `Error updating database: ${error}`);
     console.error(`[${source.name}] Error updating database:`, error);
     throw error;
   }
@@ -875,25 +962,31 @@ if (isMainModule) {
           .then((result) => {
             if (!result.success) {
               if (result.reason === 'No URLs collected') {
-                console.log(`${source.name}: No URLs collected, database unchanged.`);
+                logger.addLog('Result', source.name, 'No URLs collected, database unchanged.');
               } else {
-                console.log(`${source.name}: failed to update db`);
+                logger.addLog('Result', source.name, 'Failed to update database.');
               }
             } else {
-              console.log(`${source.name}: Completed successfully`);
+              logger.addLog('Result', source.name, 'Completed successfully');
             }
+            return result;
           })
           .catch((error) => {
+            logger.addLog('Error', source.name, `Error: ${error.message}`);
             console.error(`${source.name} Error:`, error);
+            return { success: false, source: source.name };
           })
       )
     )
       .then(() => {
+        // After all sources are complete, print the consolidated logs
+        logger.printConsolidatedLogs();
         console.log('All sources completed');
         process.exit(0);
       })
       .catch((error) => {
         console.error('Fatal error:', error);
+        logger.printConsolidatedLogs();
         process.exit(1);
       });
   } else {
@@ -909,18 +1002,20 @@ if (isMainModule) {
       .then((result) => {
         if (!result.success) {
           if (result.reason === 'No URLs collected') {
-            console.log(`${sourceName}: No URLs collected, database unchanged.`);
+            logger.addLog('Result', source.name, 'No URLs collected, database unchanged.');
           } else {
-            console.log(`${sourceName} failed to update`);
+            logger.addLog('Result', source.name, 'Failed to update database.');
           }
-          process.exit(0);
         } else {
-          console.log(`${sourceName}: Update completed successfully`);
-          process.exit(0);
+          logger.addLog('Result', source.name, 'Update completed successfully');
         }
+        // Print consolidated logs after single source completes
+        logger.printConsolidatedLogs();
+        process.exit(0);
       })
       .catch((error) => {
         console.error('Error:', error);
+        logger.printConsolidatedLogs();
         process.exit(1);
       });
   }
