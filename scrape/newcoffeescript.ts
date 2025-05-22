@@ -712,6 +712,159 @@ class BodhiLeafSource implements CoffeeSource {
   }
 }
 
+class ShowroomCoffeeSource implements CoffeeSource {
+  name = 'showroom_coffee';
+  baseUrl = 'https://showroomcoffee.com/category/green-coffee/';
+  async collectInitUrlsData(): Promise<ProductData[]> {
+    const browser = await chromium.launch({
+      headless: false,
+    });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    try {
+      await page.goto(this.baseUrl, { timeout: 60000 });
+      await scrollDownUntilNoMoreContent(page);
+
+      const urlsAndPrices = await page.evaluate(() => {
+        // Debug: Log some of the HTML structure
+        console.log('HTML structure:', document.querySelector('#wrapper')?.innerHTML);
+
+        // Try multiple selectors
+        const figures = document.querySelectorAll(
+          'figure.product-thumbnail, figure.product_thumbnail, .product-thumbnail'
+        );
+        console.log('Found figures:', figures.length);
+
+        // Debug: Log what we found
+        figures.forEach((fig, i) => {
+          console.log(`Figure ${i}:`, {
+            classes: fig.className,
+            html: fig.innerHTML,
+          });
+        });
+
+        return Array.from(figures).map((figure) => {
+          const link = figure.querySelector('a');
+          // Get the price from the last bdi element in the price span (highest price in range)
+          const priceContainer = figure
+            .closest('.product.type-product')
+            ?.querySelector('.wc-measurement-price-calculator-price');
+          const allPrices = priceContainer?.querySelectorAll('bdi');
+          const lastPrice = allPrices?.length ? allPrices[allPrices.length - 1] : null;
+
+          const url = link ? link.getAttribute('href') : null;
+          const priceText = lastPrice ? lastPrice.textContent?.trim().replace('$', '') : null;
+          const price = priceText ? parseFloat(priceText) : null;
+
+          console.log('Processing product:', { url, priceText, price });
+          return { url, price };
+        });
+      });
+
+      // Log what we found after evaluation
+      console.log('URLs and prices:', urlsAndPrices);
+
+      await browser.close();
+      const filteredResults = urlsAndPrices.filter(
+        (item): item is ProductData => item.url !== null && typeof item.url === 'string' && item.price !== null
+      );
+      return filteredResults;
+    } catch (error) {
+      console.error('Error collecting URLs and prices:', error);
+      await browser.close();
+      return [];
+    }
+  }
+
+  async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
+    const browser = await chromium.launch({
+      headless: false,
+    });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    try {
+      await page.goto(url, { timeout: 60000 });
+      await page.waitForTimeout(2000);
+
+      // Get product name
+      const productName = await page.evaluate((): string | null => {
+        const nameElement = document.querySelector('.product-information h1');
+        const text = nameElement?.textContent?.trim();
+        return typeof text === 'string' ? text : null;
+      });
+
+      // Get table data
+      const tableData = await page.evaluate(() => {
+        const data: Record<string, string> = {};
+        const rows = document.querySelectorAll('#tab-additional_information table tr');
+
+        rows.forEach((row) => {
+          const label = row.querySelector('th')?.textContent?.trim().toLowerCase();
+          const value = row.querySelector('td p')?.textContent?.trim();
+
+          if (label && value) {
+            data[label] = value;
+          }
+        });
+
+        return data;
+      });
+
+      // Click description tab and get farm notes
+      await page.click('#tab-title-description');
+      await page.waitForTimeout(1000);
+
+      const descriptionData = await page.evaluate((): string | null => {
+        const descElement = document.querySelector('#tab-description');
+        if (!descElement) return null;
+        const text = descElement.textContent?.trim();
+        return typeof text === 'string' ? text : null;
+      });
+
+      // Process cupping notes to extract score
+      let scoreValue: number | null = null;
+      let cuppingNotes = tableData['cupping notes upon arrival'] || null;
+      if (cuppingNotes) {
+        const match = cuppingNotes.match(/^(\d+(\.\d+)?)/);
+        if (match) {
+          scoreValue = parseFloat(match[1]);
+        }
+      }
+
+      // Combine country and region for region field
+      const region = [tableData['country'], tableData['region']].filter(Boolean).join(', ');
+
+      await browser.close();
+
+      return {
+        productName,
+        url,
+        scoreValue,
+        descriptionShort: tableData['fresh filter'] || null,
+        descriptionLong: null,
+        farmNotes: descriptionData,
+        cost_lb: price,
+        arrivalDate: tableData['arrival date'] || null,
+        packaging: null,
+        type: tableData['community name'] || null,
+        cultivarDetail: tableData['varietals'] || null,
+        grade: tableData['elevation'] || null,
+        appearance: null,
+        roastRecs: null,
+        cuppingNotes,
+        region: region || null,
+        processing: tableData['processing method'] || null,
+      };
+    } catch (error) {
+      console.error(`Error scraping ${url}:`, error);
+      await browser.close();
+      return null;
+    }
+  }
+}
+
 // Modified database update function to handle multiple sources
 async function updateDatabase(source: CoffeeSource) {
   try {
@@ -728,7 +881,9 @@ async function updateDatabase(source: CoffeeSource) {
         !url.includes('-set.html') &&
         !url.includes('-blend') &&
         !url.includes('-sampler') &&
-        !url.includes('steves-favorites')
+        !url.includes('steves-favorites') &&
+        !url.includes('bag-ends') &&
+        !url.includes('fruit-basket-combo-pack')
       );
     });
     logger.addLog(
@@ -945,6 +1100,7 @@ if (isMainModule) {
     sweet_maria: new SweetMariasSource(),
     captain_coffee: new CaptainCoffeeSource(),
     bodhi_leaf: new BodhiLeafSource(),
+    showroom_coffee: new ShowroomCoffeeSource(),
   };
 
   const sourceName = process.argv[2];
