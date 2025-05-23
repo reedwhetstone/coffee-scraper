@@ -716,9 +716,7 @@ class ShowroomCoffeeSource implements CoffeeSource {
   name = 'showroom_coffee';
   baseUrl = 'https://showroomcoffee.com/category/green-coffee/';
   async collectInitUrlsData(): Promise<ProductData[]> {
-    const browser = await chromium.launch({
-      headless: false,
-    });
+    const browser = await chromium.launch();
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -727,22 +725,9 @@ class ShowroomCoffeeSource implements CoffeeSource {
       await scrollDownUntilNoMoreContent(page);
 
       const urlsAndPrices = await page.evaluate(() => {
-        // Debug: Log some of the HTML structure
-        console.log('HTML structure:', document.querySelector('#wrapper')?.innerHTML);
-
-        // Try multiple selectors
         const figures = document.querySelectorAll(
           'figure.product-thumbnail, figure.product_thumbnail, .product-thumbnail'
         );
-        console.log('Found figures:', figures.length);
-
-        // Debug: Log what we found
-        figures.forEach((fig, i) => {
-          console.log(`Figure ${i}:`, {
-            classes: fig.className,
-            html: fig.innerHTML,
-          });
-        });
 
         return Array.from(figures).map((figure) => {
           const link = figure.querySelector('a');
@@ -757,13 +742,9 @@ class ShowroomCoffeeSource implements CoffeeSource {
           const priceText = lastPrice ? lastPrice.textContent?.trim().replace('$', '') : null;
           const price = priceText ? parseFloat(priceText) : null;
 
-          console.log('Processing product:', { url, priceText, price });
           return { url, price };
         });
       });
-
-      // Log what we found after evaluation
-      console.log('URLs and prices:', urlsAndPrices);
 
       await browser.close();
       const filteredResults = urlsAndPrices.filter(
@@ -778,9 +759,7 @@ class ShowroomCoffeeSource implements CoffeeSource {
   }
 
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
-    const browser = await chromium.launch({
-      headless: false,
-    });
+    const browser = await chromium.launch();
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -788,6 +767,8 @@ class ShowroomCoffeeSource implements CoffeeSource {
       await page.goto(url, { timeout: 60000 });
       await page.waitForTimeout(2000);
 
+      //close showroom_coffee klayvio popup
+      await page.click('[aria-label="Close dialog"]');
       // Get product name
       const productName = await page.evaluate((): string | null => {
         const nameElement = document.querySelector('.product-information h1');
