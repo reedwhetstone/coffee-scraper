@@ -616,23 +616,47 @@ class BodhiLeafSource implements CoffeeSource {
                 .replace(/&nbsp;/g, '')
                 .trim();
 
-              // More specific matching patterns
-              if (text.match(/^Country:\s*(.+)/i)) {
-                details.country = text.replace(/^Country:\s*/i, '').trim();
-              } else if (text.match(/^Region:\s*(.+)/i)) {
-                details.region = text.replace(/^Region:\s*/i, '').trim();
-              } else if (text.match(/^Varietal:\s*(.+)/i)) {
-                details.cultivarDetail = text.replace(/^Varietal:\s*/i, '').trim();
-              } else if (text.match(/^Process:\s*(.+)/i)) {
-                details.processing = text.replace(/^Process:\s*/i, '').trim();
-              } else if (text.match(/^Altitude:\s*(.+)/i)) {
-                details.grade = text.replace(/^Altitude:\s*/i, '').trim();
-              } else if (text.match(/^Cupping Notes:\s*(.+)/i)) {
-                details.cuppingNotes = text.replace(/^Cupping Notes:\s*/i, '').trim();
-              } else if (text.match(/^Recommended Roast:\s*(.+)/i)) {
-                details.roastRecs = text.replace(/^Recommended Roast:\s*/i, '').trim();
-              } else if (text.match(/^Good For:\s*(.+)/i)) {
-                descriptionShort = text.trim();
+              // More specific matching patterns - match field names and clean colons/spaces
+              if (text.match(/^Country/i)) {
+                details.country = text
+                  .replace(/^Country/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Region/i)) {
+                details.region = text
+                  .replace(/^Region/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Varietal/i)) {
+                details.cultivarDetail = text
+                  .replace(/^Varietal/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Process/i)) {
+                details.processing = text
+                  .replace(/^Process/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Altitude/i)) {
+                details.grade = text
+                  .replace(/^Altitude/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Cupping Notes/i)) {
+                details.cuppingNotes = text
+                  .replace(/^Cupping Notes/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Recommended Roast/i)) {
+                details.roastRecs = text
+                  .replace(/^Recommended Roast/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
+              } else if (text.match(/^Good For/i)) {
+                descriptionShort = text
+                  .replace(/^Good For/i, '')
+                  .replace(/^[:\s]+/, '')
+                  .trim();
               }
             });
           }
