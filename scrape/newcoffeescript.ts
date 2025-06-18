@@ -143,13 +143,19 @@ class SweetMariasSource implements CoffeeSource {
     const page = await context.newPage();
 
     try {
+      logger.addLog('Debug', this.name, `Navigating to ${this.baseUrl}`);
       await page.goto(this.baseUrl, {
-        timeout: 60000,
-        // waitUntil: 'networkidle', // Wait for network to be idle
+        timeout: 90000,
+        waitUntil: 'domcontentloaded',
       });
 
+      const pageTitle = await page.title();
+      logger.addLog('Debug', this.name, `Page title: "${pageTitle}"`);
+
       // Add a longer wait to ensure dynamic content loads
-      await page.waitForTimeout(5000);
+      logger.addLog('Debug', this.name, 'Waiting for 10 seconds for dynamic content to load...');
+      await page.waitForTimeout(10000);
+      logger.addLog('Debug', this.name, 'Wait finished. Evaluating page content.');
 
       const urlsAndPrices = await page.evaluate(() => {
         const products = document.querySelectorAll('tr.item');
@@ -165,14 +171,41 @@ class SweetMariasSource implements CoffeeSource {
         });
       });
 
+      if (urlsAndPrices.length === 0) {
+        logger.addLog('Debug', this.name, 'No products found with selector "tr.item".');
+        const pageContent = await page.content();
+        logger.addLog('Debug', this.name, `Current page URL: ${page.url()}`);
+        logger.addLog('Debug', this.name, `Page content length: ${pageContent.length}`);
+        logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
+      }
+
       await browser.close();
       const filteredResults = urlsAndPrices.filter(
         (item): item is ProductData => item.url !== null && typeof item.url === 'string' && item.price !== null // Only include items with valid prices
       );
       return filteredResults;
     } catch (error) {
-      console.error('Error collecting URLs and prices:', error);
-      await browser.close();
+      const e = error as Error;
+      logger.addLog('Error', this.name, `Error collecting URLs and prices: ${e.message}`);
+      logger.addLog('Error', this.name, `Stack trace: ${e.stack}`);
+
+      if (page) {
+        try {
+          const pageContent = await page.content();
+          logger.addLog(
+            'Debug',
+            this.name,
+            `Page content on error (first 500 chars): ${pageContent.substring(0, 500)}`
+          );
+        } catch (contentError) {
+          const ce = contentError as Error;
+          logger.addLog('Error', this.name, `Could not get page content on error: ${ce.message}`);
+        }
+      }
+
+      if (browser) {
+        await browser.close();
+      }
       return [];
     }
   }
