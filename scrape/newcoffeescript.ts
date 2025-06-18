@@ -149,7 +149,7 @@ class SweetMariasSource implements CoffeeSource {
     try {
       await page.goto(this.baseUrl, {
         timeout: 60000,
-        waitUntil: 'networkidle', // Wait for network to be idle
+        // waitUntil: 'networkidle', // Wait for network to be idle
       });
 
       // Add a longer wait to ensure dynamic content loads
@@ -182,11 +182,7 @@ class SweetMariasSource implements CoffeeSource {
   }
 
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
-    const browser = await chromium.launch({
-      // Use the new headless mode which has better site compatibility
-      //  headless: true,
-      args: ['--headless=new'],
-    });
+    const browser = await chromium.launch();
     const context = await browser.newContext({
       // Add a desktop user agent to avoid headless detection
       userAgent:
