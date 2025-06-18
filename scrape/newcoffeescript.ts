@@ -134,11 +134,7 @@ class SweetMariasSource implements CoffeeSource {
   baseUrl = 'https://www.sweetmarias.com/green-coffee.html?product_list_limit=all&sm_status=1';
 
   async collectInitUrlsData(): Promise<ProductData[]> {
-    const browser = await chromium.launch({
-      // Use the new headless mode which has better site compatibility
-      // headless: true,
-      args: ['--headless=new'],
-    });
+    const browser = await chromium.launch();
     const context = await browser.newContext({
       // Add a desktop user agent to avoid headless detection
       userAgent:
