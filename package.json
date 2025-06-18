@@ -11,7 +11,8 @@
     "tsx": "^4.19.2"
   },
   "scripts": {
-    "scrape": "tsx ./scrape/newcoffeescript.ts",
+    "scrape": "xvfb-run tsx ./scrape/newcoffeescript.ts",
+    "scrape-local": "tsx ./scrape/newcoffeescript.ts",
     "update-prices": "tsx ./scrape/updatePrices.ts"
   }
 }
