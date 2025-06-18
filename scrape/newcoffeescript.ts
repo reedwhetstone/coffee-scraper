@@ -161,21 +161,21 @@ class SweetMariasSource implements CoffeeSource {
     const page = await context.newPage();
 
     try {
-      logger.addLog('Debug', this.name, `Navigating to ${this.baseUrl}`);
+      // logger.addLog('Debug', this.name, `Navigating to ${this.baseUrl}`);
       await page.goto(this.baseUrl, {
         timeout: 90000, // Increased timeout
         waitUntil: 'networkidle', // Wait for network to be idle to handle challenges
       });
 
       const pageTitle = await page.title();
-      logger.addLog('Debug', this.name, `Page title after goto: "${pageTitle}"`);
+      // logger.addLog('Debug', this.name, `Page title after goto: "${pageTitle}"`);
 
       // The "Just a moment..." page is a sign of Cloudflare bot detection.
       // We'll wait for a specific element on the real page to appear.
-      logger.addLog('Debug', this.name, 'Waiting for product list selector "tr.item" to appear...');
+      // logger.addLog('Debug', this.name, 'Waiting for product list selector "tr.item" to appear...');
       try {
         await page.waitForSelector('tr.item', { timeout: 45000 }); // Wait up to 45 seconds
-        logger.addLog('Debug', this.name, 'Product list selector found. Scraping page.');
+        // logger.addLog('Debug', this.name, 'Product list selector found. Scraping page.');
       } catch (e) {
         logger.addLog(
           'Error',
@@ -184,8 +184,8 @@ class SweetMariasSource implements CoffeeSource {
         );
         const finalTitle = await page.title();
         const pageContent = await page.content();
-        logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
-        logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
+        // logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
+        // logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
         await context.close();
         return [];
       }
@@ -205,10 +205,10 @@ class SweetMariasSource implements CoffeeSource {
       });
 
       if (urlsAndPrices.length === 0) {
-        logger.addLog('Debug', this.name, 'Product selector was found, but evaluation returned 0 products.');
+        // logger.addLog('Debug', this.name, 'Product selector was found, but evaluation returned 0 products.');
         const pageContent = await page.content();
-        logger.addLog('Debug', this.name, `Current page URL: ${page.url()}`);
-        logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
+        // logger.addLog('Debug', this.name, `Current page URL: ${page.url()}`);
+        // logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
       }
 
       await context.close();
@@ -224,11 +224,11 @@ class SweetMariasSource implements CoffeeSource {
       if (page) {
         try {
           const pageContent = await page.content();
-          logger.addLog(
+          /* logger.addLog(
             'Debug',
             this.name,
             `Page content on error (first 500 chars): ${pageContent.substring(0, 500)}`
-          );
+          ); */
         } catch (contentError) {
           const ce = contentError as Error;
           logger.addLog('Error', this.name, `Could not get page content on error: ${ce.message}`);
