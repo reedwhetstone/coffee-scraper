@@ -136,7 +136,7 @@ class SweetMariasSource implements CoffeeSource {
   async collectInitUrlsData(): Promise<ProductData[]> {
     const browser = await chromium.launch({
       // Use the new headless mode which has better site compatibility
-      headless: true,
+      // headless: true,
       args: ['--headless=new'],
     });
     const context = await browser.newContext({
@@ -184,7 +184,7 @@ class SweetMariasSource implements CoffeeSource {
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
     const browser = await chromium.launch({
       // Use the new headless mode which has better site compatibility
-      headless: true,
+      //  headless: true,
       args: ['--headless=new'],
     });
     const context = await browser.newContext({
