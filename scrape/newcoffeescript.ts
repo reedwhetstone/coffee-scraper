@@ -145,17 +145,32 @@ class SweetMariasSource implements CoffeeSource {
     try {
       logger.addLog('Debug', this.name, `Navigating to ${this.baseUrl}`);
       await page.goto(this.baseUrl, {
-        timeout: 90000,
-        waitUntil: 'domcontentloaded',
+        timeout: 90000, // Increased timeout
+        waitUntil: 'networkidle', // Wait for network to be idle to handle challenges
       });
 
       const pageTitle = await page.title();
-      logger.addLog('Debug', this.name, `Page title: "${pageTitle}"`);
+      logger.addLog('Debug', this.name, `Page title after goto: "${pageTitle}"`);
 
-      // Add a longer wait to ensure dynamic content loads
-      logger.addLog('Debug', this.name, 'Waiting for 10 seconds for dynamic content to load...');
-      await page.waitForTimeout(10000);
-      logger.addLog('Debug', this.name, 'Wait finished. Evaluating page content.');
+      // The "Just a moment..." page is a sign of Cloudflare bot detection.
+      // We'll wait for a specific element on the real page to appear.
+      logger.addLog('Debug', this.name, 'Waiting for product list selector "tr.item" to appear...');
+      try {
+        await page.waitForSelector('tr.item', { timeout: 45000 }); // Wait up to 45 seconds
+        logger.addLog('Debug', this.name, 'Product list selector found. Scraping page.');
+      } catch (e) {
+        logger.addLog(
+          'Error',
+          this.name,
+          'Timed out waiting for product list. The bot detection page was likely not bypassed.'
+        );
+        const finalTitle = await page.title();
+        const pageContent = await page.content();
+        logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
+        logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
+        await browser.close();
+        return [];
+      }
 
       const urlsAndPrices = await page.evaluate(() => {
         const products = document.querySelectorAll('tr.item');
@@ -172,10 +187,9 @@ class SweetMariasSource implements CoffeeSource {
       });
 
       if (urlsAndPrices.length === 0) {
-        logger.addLog('Debug', this.name, 'No products found with selector "tr.item".');
+        logger.addLog('Debug', this.name, 'Product selector was found, but evaluation returned 0 products.');
         const pageContent = await page.content();
         logger.addLog('Debug', this.name, `Current page URL: ${page.url()}`);
-        logger.addLog('Debug', this.name, `Page content length: ${pageContent.length}`);
         logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
       }
 
