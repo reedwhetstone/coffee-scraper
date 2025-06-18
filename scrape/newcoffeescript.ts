@@ -1,5 +1,7 @@
 /** @format */
 
+import path from 'path';
+
 //npm run scrape all
 // npm run scrape sweet_maria
 // npm run scrape captain_coffee
@@ -137,16 +139,25 @@ async function scrollDownUntilNoMoreContent(page: Page) {
 class SweetMariasSource implements CoffeeSource {
   name = 'sweet_maria';
   baseUrl = 'https://www.sweetmarias.com/green-coffee.html?product_list_limit=all&sm_status=1';
+  // Use a persistent session to store cookies and appear more human-like, as recommended by the article.
+  userDataDir = path.join(process.cwd(), 'session-profile-sm');
 
   async collectInitUrlsData(): Promise<ProductData[]> {
-    const browser = await chromium.launch();
-    const context = await browser.newContext({
-      // Add a more realistic context to avoid bot detection
-      viewport: { width: 1920, height: 1080 },
+    // Per the article, use a persistent context to reuse cookies and run in headed mode to bypass Cloudflare.
+    const context = await chromium.launchPersistentContext(this.userDataDir, {
+      headless: false, // Headed mode is strongly recommended for bypassing bot detection.
+      args: ['--start-maximized'],
+      // Add a more realistic, slightly randomized context to avoid fingerprinting.
+      viewport: {
+        width: 1920 + Math.floor(Math.random() * 100),
+        height: 1080 + Math.floor(Math.random() * 100),
+      },
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       locale: 'en-US',
+      timezoneId: 'America/New_York', // Match timezone for consistency, a common fingerprinting check.
     });
+
     const page = await context.newPage();
 
     try {
@@ -175,7 +186,7 @@ class SweetMariasSource implements CoffeeSource {
         const pageContent = await page.content();
         logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
         logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
-        await browser.close();
+        await context.close();
         return [];
       }
 
@@ -200,7 +211,7 @@ class SweetMariasSource implements CoffeeSource {
         logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
       }
 
-      await browser.close();
+      await context.close();
       const filteredResults = urlsAndPrices.filter(
         (item): item is ProductData => item.url !== null && typeof item.url === 'string' && item.price !== null // Only include items with valid prices
       );
@@ -224,21 +235,26 @@ class SweetMariasSource implements CoffeeSource {
         }
       }
 
-      if (browser) {
-        await browser.close();
+      if (context) {
+        await context.close();
       }
       return [];
     }
   }
 
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
-    const browser = await chromium.launch();
-    const context = await browser.newContext({
-      // Add a more realistic context to avoid bot detection
-      viewport: { width: 1920, height: 1080 },
+    const context = await chromium.launchPersistentContext(this.userDataDir, {
+      headless: false, // Headed mode is strongly recommended for bypassing bot detection.
+      args: ['--start-maximized'],
+      // Add a more realistic, slightly randomized context to avoid fingerprinting.
+      viewport: {
+        width: 1920 + Math.floor(Math.random() * 100),
+        height: 1080 + Math.floor(Math.random() * 100),
+      },
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       locale: 'en-US',
+      timezoneId: 'America/New_York',
     });
     const page = await context.newPage();
 
@@ -322,7 +338,7 @@ class SweetMariasSource implements CoffeeSource {
         return data;
       });
 
-      await browser.close();
+      await context.close();
 
       // Transform the raw specs data into a structured object
       return {
@@ -348,7 +364,7 @@ class SweetMariasSource implements CoffeeSource {
       };
     } catch (error) {
       console.error(`Error scraping ${url}:`, error);
-      await browser.close();
+      await context.close();
       return null;
     }
   }
