@@ -5,9 +5,14 @@
 // npm run scrape captain_coffee
 // npm run scrape bodhi_leaf
 
-import { chromium, Page } from 'playwright';
+import { chromium } from 'playwright-extra';
+import { Page } from 'playwright';
+import stealth from 'puppeteer-extra-plugin-stealth';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+
+// Use the stealth plugin
+chromium.use(stealth());
 
 // Load environment variables
 dotenv.config();
@@ -136,9 +141,11 @@ class SweetMariasSource implements CoffeeSource {
   async collectInitUrlsData(): Promise<ProductData[]> {
     const browser = await chromium.launch();
     const context = await browser.newContext({
-      // Add a desktop user agent to avoid headless detection
+      // Add a more realistic context to avoid bot detection
+      viewport: { width: 1920, height: 1080 },
       userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'en-US',
     });
     const page = await context.newPage();
 
@@ -227,9 +234,11 @@ class SweetMariasSource implements CoffeeSource {
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
     const browser = await chromium.launch();
     const context = await browser.newContext({
-      // Add a desktop user agent to avoid headless detection
+      // Add a more realistic context to avoid bot detection
+      viewport: { width: 1920, height: 1080 },
       userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'en-US',
     });
     const page = await context.newPage();
 

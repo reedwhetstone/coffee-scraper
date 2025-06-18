@@ -5,8 +5,10 @@
   "dependencies": {
     "@supabase/supabase-js": "latest",
     "dotenv": "latest",
-    "tsx": "^4.19.2",
-    "playwright": "latest"
+    "playwright": "latest",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "tsx": "^4.19.2"
   },
   "scripts": {
     "scrape": "tsx ./scrape/newcoffeescript.ts",
