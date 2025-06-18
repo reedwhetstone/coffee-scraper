@@ -21,3 +21,7 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Session data
+session-profile-sm/
+
