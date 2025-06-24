@@ -20,6 +20,7 @@ To run the scraper for all sources:
 
 ```bash
 npm run scrape all
+npm run scrape-local all for local deployment ( not headless)
 ```
 
 To run for a specific source:
