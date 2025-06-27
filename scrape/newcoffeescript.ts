@@ -374,11 +374,16 @@ class SweetMariasSource implements CoffeeSource {
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) =>
         parameters.name === 'notifications'
-          ? Promise.resolve({ state: Notification.permission })
+          ? Promise.resolve({
+              name: 'notifications',
+              state: Notification.permission,
+              onchange: null,
+            } as unknown as PermissionStatus)
           : originalQuery(parameters);
 
       // Add noise to canvas fingerprinting
       const getContext = HTMLCanvasElement.prototype.getContext;
+
       HTMLCanvasElement.prototype.getContext = function (type, attributes) {
         const context = getContext.call(this, type, attributes);
         if (type === '2d') {
