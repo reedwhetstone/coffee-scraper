@@ -135,57 +135,374 @@ async function scrollDownUntilNoMoreContent(page: Page) {
   await page.waitForTimeout(2000);
 }
 
+//Enhanced stealth configuration for bypassing Cloudflare
+function getAdvancedStealthArgs(): string[] {
+  return [
+    '--start-maximized',
+    '--disable-blink-features=AutomationControlled',
+    '--disable-features=VizDisplayCompositor',
+    '--disable-web-security',
+    '--disable-features=TranslateUI',
+    '--disable-ipc-flooding-protection',
+    '--no-first-run',
+    '--no-service-autorun',
+    '--no-default-browser-check',
+    '--password-store=basic',
+    '--use-mock-keychain',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-renderer-backgrounding',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-client-side-phishing-detection',
+    '--disable-sync',
+    '--metrics-recording-only',
+    '--no-report-upload',
+    '--disable-dev-shm-usage',
+    '--ignore-ssl-errors',
+    '--ignore-certificate-errors',
+    '--allow-running-insecure-content',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-default-apps',
+    '--mute-audio',
+    '--no-zygote',
+    '--disable-extensions',
+    '--disable-component-update',
+    '--disable-background-mode',
+    '--disable-plugins-discovery',
+    '--disable-prerender-local-predictor',
+  ];
+}
+
+function getRandomUserAgent(): string {
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  ];
+  return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
+
+// Enhanced human behavior simulation functions
+async function simulateHumanBehavior(page: Page): Promise<void> {
+  // Random mouse movements in realistic patterns
+  const startX = Math.floor(Math.random() * 400) + 100;
+  const startY = Math.floor(Math.random() * 400) + 100;
+
+  // Move mouse in a curved path
+  for (let i = 0; i < 5; i++) {
+    const endX = startX + Math.floor(Math.random() * 200) - 100;
+    const endY = startY + Math.floor(Math.random() * 200) - 100;
+    await page.mouse.move(endX, endY);
+    await page.waitForTimeout(Math.floor(Math.random() * 200) + 50);
+  }
+
+  // Simulate realistic scrolling behavior
+  const scrollActions = Math.floor(Math.random() * 3) + 2;
+  for (let i = 0; i < scrollActions; i++) {
+    const scrollDistance = Math.floor(Math.random() * 500) + 200;
+    await page.evaluate((distance) => {
+      window.scrollBy(0, distance);
+    }, scrollDistance);
+    await page.waitForTimeout(Math.floor(Math.random() * 1500) + 800);
+  }
+
+  // Simulate reading pause
+  await page.waitForTimeout(Math.floor(Math.random() * 3000) + 2000);
+
+  // Random viewport resize to mimic window adjustments
+  const viewportWidth = 1920 + Math.floor(Math.random() * 200);
+  const viewportHeight = 1080 + Math.floor(Math.random() * 200);
+  await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
+}
+
+// Enhanced session pre-warming with realistic browsing patterns
+async function preWarmSession(page: Page): Promise<void> {
+  try {
+    // Visit a neutral site first to establish browsing history
+    logger.addLog('Debug', 'session_warming', 'Visiting Google to establish browsing pattern...');
+    await page.goto('https://www.google.com', { timeout: 30000 });
+    await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1000);
+
+    // Simulate search activity
+    const searchBox = await page.$('input[name="q"]');
+    if (searchBox) {
+      await searchBox.type('coffee beans', { delay: Math.floor(Math.random() * 100) + 50 });
+      await page.waitForTimeout(Math.floor(Math.random() * 1000) + 500);
+    }
+
+    // Navigate to Sweet Maria's main page first
+    logger.addLog('Debug', 'session_warming', 'Visiting Sweet Marias main page...');
+    await page.goto('https://www.sweetmarias.com/', { timeout: 60000 });
+    await simulateHumanBehavior(page);
+
+    logger.addLog('Debug', 'session_warming', 'Session pre-warming completed');
+  } catch (error) {
+    logger.addLog('Warning', 'session_warming', `Session pre-warming failed: ${error}`);
+  }
+}
+
+// Enhanced monitoring for bypass success rates
+class BypassMonitor {
+  private static attempts = 0;
+  private static successes = 0;
+  private static failures = 0;
+
+  static recordAttempt(): void {
+    this.attempts++;
+    logger.addLog('Debug', 'bypass_monitor', `Total bypass attempts: ${this.attempts}`);
+  }
+
+  static recordSuccess(): void {
+    this.successes++;
+    const successRate = ((this.successes / this.attempts) * 100).toFixed(1);
+    logger.addLog(
+      'Info',
+      'bypass_monitor',
+      `Bypass successful! Success rate: ${successRate}% (${this.successes}/${this.attempts})`
+    );
+  }
+
+  static recordFailure(): void {
+    this.failures++;
+    const failureRate = ((this.failures / this.attempts) * 100).toFixed(1);
+    logger.addLog(
+      'Warning',
+      'bypass_monitor',
+      `Bypass failed! Failure rate: ${failureRate}% (${this.failures}/${this.attempts})`
+    );
+  }
+
+  static getStats(): { attempts: number; successes: number; failures: number; successRate: number } {
+    return {
+      attempts: this.attempts,
+      successes: this.successes,
+      failures: this.failures,
+      successRate: this.attempts > 0 ? (this.successes / this.attempts) * 100 : 0,
+    };
+  }
+}
+
+// Session management for rotation
+class SessionManager {
+  private sessions: string[] = [];
+  private currentSessionIndex = 0;
+
+  constructor() {
+    // Create multiple session profiles for rotation
+    for (let i = 0; i < 3; i++) {
+      this.sessions.push(path.join(process.cwd(), `session-profile-sm-${i}`));
+    }
+  }
+
+  getCurrentSession(): string {
+    return this.sessions[this.currentSessionIndex];
+  }
+
+  rotateSession(): string {
+    this.currentSessionIndex = (this.currentSessionIndex + 1) % this.sessions.length;
+    logger.addLog('Debug', 'session_manager', `Rotated to session ${this.currentSessionIndex}`);
+    return this.getCurrentSession();
+  }
+}
+
 // Refactor Sweet Maria's specific code into a class
 class SweetMariasSource implements CoffeeSource {
   name = 'sweet_maria';
   baseUrl = 'https://www.sweetmarias.com/green-coffee.html?product_list_limit=all&sm_status=1';
-  // Use a persistent session to store cookies and appear more human-like, as recommended by the article.
-  userDataDir = path.join(process.cwd(), 'session-profile-sm');
+  private sessionManager = new SessionManager();
 
   async collectInitUrlsData(): Promise<ProductData[]> {
-    // Per the article, use a persistent context to reuse cookies and run in headed mode to bypass Cloudflare.
-    const context = await chromium.launchPersistentContext(this.userDataDir, {
+    // Use session rotation for better stealth
+    const currentSession = this.sessionManager.getCurrentSession();
+    logger.addLog('Debug', this.name, `Using session: ${currentSession}`);
+
+    // Enhanced stealth configuration for bypassing Cloudflare
+    const context = await chromium.launchPersistentContext(currentSession, {
       headless: false, // Headed mode is strongly recommended for bypassing bot detection.
-      args: ['--start-maximized'],
+      args: getAdvancedStealthArgs(),
       // Add a more realistic, slightly randomized context to avoid fingerprinting.
       viewport: {
-        width: 1920 + Math.floor(Math.random() * 100),
-        height: 1080 + Math.floor(Math.random() * 100),
+        width: 1920 + Math.floor(Math.random() * 200),
+        height: 1080 + Math.floor(Math.random() * 200),
       },
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      userAgent: getRandomUserAgent(),
       locale: 'en-US',
       timezoneId: 'America/New_York', // Match timezone for consistency, a common fingerprinting check.
+      ignoreHTTPSErrors: true,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 40.7128, longitude: -74.006 }, // New York coordinates
+      deviceScaleFactor: 1 + Math.random() * 0.5, // Random device scale factor
+      hasTouch: Math.random() > 0.5, // Randomly enable touch
+      javaScriptEnabled: true,
+      acceptDownloads: false,
+      colorScheme: 'light',
+      reducedMotion: 'no-preference',
+      extraHTTPHeaders: {
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        DNT: '1',
+        Connection: 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+      },
     });
 
     const page = await context.newPage();
 
+    // Inject additional stealth scripts to avoid detection
+    await page.addInitScript(() => {
+      // Override the navigator.webdriver property
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+
+      // Mock languages and plugins
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+
+      // Override the permissions query
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters) =>
+        parameters.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission })
+          : originalQuery(parameters);
+
+      // Add noise to canvas fingerprinting
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, attributes) {
+        const context = getContext.call(this, type, attributes);
+        if (type === '2d') {
+          const originalFillText = context.fillText;
+          context.fillText = function (...args) {
+            // Add tiny noise to prevent canvas fingerprinting
+            args[1] += Math.random() * 0.01;
+            args[2] += Math.random() * 0.01;
+            return originalFillText.apply(this, args);
+          };
+        }
+        return context;
+      };
+    });
+
     try {
-      // logger.addLog('Debug', this.name, `Navigating to ${this.baseUrl}`);
+      // Record bypass attempt for monitoring
+      BypassMonitor.recordAttempt();
+
+      // Enhanced session pre-warming with realistic browsing patterns
+      await preWarmSession(page);
+
+      logger.addLog('Debug', this.name, `Navigating to target URL: ${this.baseUrl}`);
       await page.goto(this.baseUrl, {
-        timeout: 90000, // Increased timeout
+        timeout: 120000, // Increased timeout for Cloudflare challenges
         waitUntil: 'networkidle', // Wait for network to be idle to handle challenges
       });
+
+      // Additional human behavior after page load
+      await simulateHumanBehavior(page);
 
       const pageTitle = await page.title();
       // logger.addLog('Debug', this.name, `Page title after goto: "${pageTitle}"`);
 
-      // The "Just a moment..." page is a sign of Cloudflare bot detection.
-      // We'll wait for a specific element on the real page to appear.
-      // logger.addLog('Debug', this.name, 'Waiting for product list selector "tr.item" to appear...');
+      // Enhanced Cloudflare challenge detection and recovery
+      const challengePatterns = [
+        'Just a moment...',
+        'Please wait...',
+        'Checking your browser',
+        'DDoS protection by Cloudflare',
+        'Browser check',
+        'cf-browser-verification',
+      ];
+
+      let retryCount = 0;
+      const maxRetries = 3;
+      let challengeDetected = false;
+
+      while (retryCount < maxRetries) {
+        const currentTitle = await page.title();
+        const currentUrl = page.url();
+        const pageContent = await page.content();
+
+        // Check for Cloudflare challenge patterns
+        challengeDetected = challengePatterns.some(
+          (pattern) => currentTitle.includes(pattern) || pageContent.includes(pattern)
+        );
+
+        if (challengeDetected) {
+          logger.addLog(
+            'Warning',
+            this.name,
+            `Cloudflare challenge detected (attempt ${retryCount + 1}/${maxRetries})`
+          );
+          logger.addLog('Debug', this.name, `Page title: "${currentTitle}"`);
+          logger.addLog('Debug', this.name, `Current URL: ${currentUrl}`);
+
+          // Wait longer for challenge to complete
+          await page.waitForTimeout(Math.floor(Math.random() * 10000) + 15000); // 15-25 seconds
+
+          // Try to interact with the page to help bypass
+          try {
+            await page.mouse.move(500, 300);
+            await page.waitForTimeout(1000);
+            await page.mouse.click(500, 300);
+            await page.waitForTimeout(2000);
+          } catch (interactionError) {
+            logger.addLog('Debug', this.name, 'Could not interact with challenge page');
+          }
+
+          retryCount++;
+
+          // If still on challenge page, try refreshing
+          if (retryCount < maxRetries) {
+            logger.addLog('Debug', this.name, 'Refreshing page to retry challenge...');
+            await page.reload({ waitUntil: 'networkidle', timeout: 90000 });
+            await simulateHumanBehavior(page);
+          }
+        } else {
+          break; // No challenge detected, proceed
+        }
+      }
+
+      if (challengeDetected && retryCount >= maxRetries) {
+        logger.addLog('Error', this.name, 'Failed to bypass Cloudflare challenge after maximum retries');
+        logger.addLog('Debug', this.name, 'Rotating session for next attempt...');
+        this.sessionManager.rotateSession();
+        BypassMonitor.recordFailure();
+        await context.close();
+        return [];
+      }
+
+      // Wait for product list to appear
+      logger.addLog('Debug', this.name, 'Waiting for product list selector "tr.item" to appear...');
       try {
-        await page.waitForSelector('tr.item', { timeout: 45000 }); // Wait up to 45 seconds
-        // logger.addLog('Debug', this.name, 'Product list selector found. Scraping page.');
+        await page.waitForSelector('tr.item', { timeout: 60000 }); // Increased timeout
+        logger.addLog('Debug', this.name, 'Product list selector found. Scraping page.');
+        BypassMonitor.recordSuccess();
       } catch (e) {
         logger.addLog(
           'Error',
           this.name,
           'Timed out waiting for product list. The bot detection page was likely not bypassed.'
         );
+
+        // Enhanced error debugging
         const finalTitle = await page.title();
+        const finalUrl = page.url();
         const pageContent = await page.content();
-        // logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
-        // logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
+        logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
+        logger.addLog('Debug', this.name, `Final URL: ${finalUrl}`);
+        logger.addLog('Debug', this.name, `Page content (first 1000 chars): ${pageContent.substring(0, 1000)}`);
+
+        BypassMonitor.recordFailure();
         await context.close();
         return [];
       }
@@ -215,6 +532,17 @@ class SweetMariasSource implements CoffeeSource {
       const filteredResults = urlsAndPrices.filter(
         (item): item is ProductData => item.url !== null && typeof item.url === 'string' && item.price !== null // Only include items with valid prices
       );
+
+      // Log final statistics
+      const stats = BypassMonitor.getStats();
+      logger.addLog(
+        'Info',
+        this.name,
+        `Collection complete. Found ${filteredResults.length} products. Bypass stats: ${stats.successRate.toFixed(
+          1
+        )}% success rate`
+      );
+
       return filteredResults;
     } catch (error) {
       const e = error as Error;
@@ -243,24 +571,58 @@ class SweetMariasSource implements CoffeeSource {
   }
 
   async scrapeUrl(url: string, price: number | null): Promise<ScrapedData | null> {
-    const context = await chromium.launchPersistentContext(this.userDataDir, {
+    // Use same session as collectInitUrlsData for consistency
+    const currentSession = this.sessionManager.getCurrentSession();
+
+    // Use same enhanced stealth configuration as collectInitUrlsData
+    const context = await chromium.launchPersistentContext(currentSession, {
       headless: false, // Headed mode is strongly recommended for bypassing bot detection.
-      args: ['--start-maximized'],
-      // Add a more realistic, slightly randomized context to avoid fingerprinting.
+      args: getAdvancedStealthArgs(),
       viewport: {
-        width: 1920 + Math.floor(Math.random() * 100),
-        height: 1080 + Math.floor(Math.random() * 100),
+        width: 1920 + Math.floor(Math.random() * 200),
+        height: 1080 + Math.floor(Math.random() * 200),
       },
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      userAgent: getRandomUserAgent(),
       locale: 'en-US',
       timezoneId: 'America/New_York',
+      ignoreHTTPSErrors: true,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 40.7128, longitude: -74.006 },
+      deviceScaleFactor: 1 + Math.random() * 0.5,
+      hasTouch: Math.random() > 0.5,
+      javaScriptEnabled: true,
+      acceptDownloads: false,
+      colorScheme: 'light',
+      reducedMotion: 'no-preference',
+      extraHTTPHeaders: {
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        DNT: '1',
+        Connection: 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+      },
     });
     const page = await context.newPage();
 
+    // Apply same stealth scripts
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+    });
+
     try {
-      await page.goto(url, { timeout: 60000 });
-      await page.waitForTimeout(200);
+      await page.goto(url, { timeout: 90000, waitUntil: 'networkidle' });
+      await simulateHumanBehavior(page);
 
       // Add product name extraction
       const productName = await page.evaluate(() => {
