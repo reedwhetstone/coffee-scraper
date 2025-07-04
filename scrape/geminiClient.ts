@@ -429,7 +429,7 @@ OUTPUT SCHEMA
 "sweetness": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" }
 }
 
-Default rule: if unsure of an output, infer from context or assign score 3 and tag "average" with color "#8b5a2b".
+Default rule: if unsure of an output, infer from context or assign score 3 and tag "balanced" with color "#8b5a2b".
 
 FEW-SHOT EXAMPLES:
 

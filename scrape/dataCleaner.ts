@@ -201,56 +201,56 @@ export class DataCleaner {
 
     if (nullFields.length === 0) {
       this.log('Data Cleaning', sourceName, 'No NULL fields found for batch cleaning');
-      return result;
-    }
+      // Skip cleaning API call but continue to AI generation
+    } else {
+      try {
+        const batchPrompt = this.createBatchPrompt(
+          nullFields,
+          data.descriptionLong,
+          data.descriptionShort,
+          data.farmNotes
+        );
 
-    try {
-      const batchPrompt = this.createBatchPrompt(
-        nullFields,
-        data.descriptionLong,
-        data.descriptionShort,
-        data.farmNotes
-      );
+        this.log('Data Cleaning', sourceName, `Batch processing ${nullFields.length} fields: ${nullFields.join(', ')}`);
 
-      this.log('Data Cleaning', sourceName, `Batch processing ${nullFields.length} fields: ${nullFields.join(', ')}`);
+        const response = await this.geminiClient.extractCoffeeData(batchPrompt);
 
-      const response = await this.geminiClient.extractCoffeeData(batchPrompt);
+        if (!response.success) {
+          throw new Error(response.error || 'Batch processing failed');
+        }
 
-      if (!response.success) {
-        throw new Error(response.error || 'Batch processing failed');
-      }
+        const extractedData = response.data;
 
-      const extractedData = response.data;
+        // Process each field from the batch response
+        for (const fieldName of nullFields) {
+          const value = extractedData[fieldName];
 
-      // Process each field from the batch response
-      for (const fieldName of nullFields) {
-        const value = extractedData[fieldName];
-
-        if (!this.isNullOrEmpty(value)) {
-          // Apply field-specific validation
-          const config = CLEANING_FIELD_CONFIGS.find((c) => c.field === fieldName);
-          if (!config?.validation || config.validation(value)) {
-            result.cleanedData[fieldName] = String(value).trim();
-            result.fieldsProcessed.push(fieldName);
-            this.log('Data Cleaning', sourceName, `Batch cleaned field "${fieldName}": ${value}`);
-          } else {
-            this.log('Warning', sourceName, `Batch validation failed for field "${fieldName}": ${value}`);
+          if (!this.isNullOrEmpty(value)) {
+            // Apply field-specific validation
+            const config = CLEANING_FIELD_CONFIGS.find((c) => c.field === fieldName);
+            if (!config?.validation || config.validation(value)) {
+              result.cleanedData[fieldName] = String(value).trim();
+              result.fieldsProcessed.push(fieldName);
+              this.log('Data Cleaning', sourceName, `Batch cleaned field "${fieldName}": ${value}`);
+            } else {
+              this.log('Warning', sourceName, `Batch validation failed for field "${fieldName}": ${value}`);
+            }
           }
         }
-      }
 
-      this.log(
-        'Data Cleaning',
-        sourceName,
-        `Batch cleaning complete. Processed ${result.fieldsProcessed.length} fields`
-      );
-    } catch (error) {
-      const errorMsg = `Batch cleaning failed: ${error}`;
-      result.errors.push(errorMsg);
-      this.log('Error', sourceName, errorMsg);
+        this.log(
+          'Data Cleaning',
+          sourceName,
+          `Batch cleaning complete. Processed ${result.fieldsProcessed.length} fields`
+        );
+      } catch (error) {
+        const errorMsg = `Batch cleaning failed: ${error}`;
+        result.errors.push(errorMsg);
+        this.log('Error', sourceName, errorMsg);
+      }
     }
 
-    // Generate AI description after field cleaning
+    // Generate AI description after field cleaning (runs regardless of NULL fields)
     try {
       const aiDescription = await this.generateAiDescription(result.cleanedData, sourceName);
       if (aiDescription) {
@@ -263,7 +263,7 @@ export class DataCleaner {
       this.log('Error', sourceName, errorMsg);
     }
 
-    // Generate AI tasting notes after field cleaning
+    // Generate AI tasting notes after field cleaning (runs regardless of NULL fields)
     try {
       const aiTastingNotes = await this.generateAiTastingNotes(result.cleanedData, sourceName);
       if (aiTastingNotes) {
@@ -278,7 +278,6 @@ export class DataCleaner {
 
     return result;
   }
-
   private createBatchPrompt(
     fields: string[],
     descriptionLong: string | null,
