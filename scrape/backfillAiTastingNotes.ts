@@ -32,15 +32,19 @@ class AiTastingNotesBackfill {
   }
 
   private log(message: string) {
-    const elapsed = Math.round((Date.now() - this.startTime) / 1000);
-    console.log(`[${elapsed}s] ${message}`);
+    // Only log errors, warnings, and completion messages to reduce verbosity
+    if (message.toLowerCase().includes('error') || 
+        message.toLowerCase().includes('warning') || 
+        message.toLowerCase().includes('failed') ||
+        message.toLowerCase().includes('completed') ||
+        message.toLowerCase().includes('starting')) {
+      const elapsed = Math.round((Date.now() - this.startTime) / 1000);
+      console.log(`[${elapsed}s] ${message}`);
+    }
   }
 
   private logProgress() {
-    const elapsed = Math.round((Date.now() - this.startTime) / 1000);
-    const rate = this.processedCount > 0 ? Math.round((this.processedCount / elapsed) * 60) : 0;
-    const modelStatus = this.geminiClient.getModelStatus();
-    console.log(`Progress: ${this.processedCount} processed, ${this.successCount} success, ${this.errorCount} errors (${rate}/min) - Model: ${modelStatus.currentModel}`);
+    // Suppress progress logging to reduce verbosity
   }
 
   async fetchRecordsNeedingAiTastingNotes(): Promise<CoffeeRecord[]> {

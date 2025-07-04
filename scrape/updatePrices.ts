@@ -22,10 +22,7 @@ async function scrapeUrlsAndPrices(): Promise<Array<{ url: string; price: number
 		);
 		await page.waitForTimeout(2000); // Give page time to load
 
-		// Debug: Log the number of elements found
-		await page.evaluate(() => {
-			console.log('Products found:', document.querySelectorAll('tr.item').length);
-		});
+		// Debug: Check the number of elements found (suppress verbose logging)
 
 		const urlsAndPrices = await page.evaluate(() => {
 			const products = document.querySelectorAll('tr.item');
@@ -38,20 +35,20 @@ async function scrapeUrlsAndPrices(): Promise<Array<{ url: string; price: number
 				const price = priceText ? parseFloat(priceText.replace('$', '')) : null;
 
 				// Debug: Log each product's data
-				console.log('Product:', { url, priceText, price });
+				// Product processed (suppress verbose logging)
 
 				return { url, price };
 			});
 		});
 
-		console.log('Scraped data:', urlsAndPrices); // Debug log
+		// Scraped data (suppress verbose logging) // Debug log
 
 		await browser.close();
 		const filteredResults = urlsAndPrices.filter(
 			(item): item is { url: string; price: number | null } =>
 				item.url !== null && typeof item.url === 'string'
 		);
-		console.log('Filtered results:', filteredResults); // Debug log
+		// Filtered results (suppress verbose logging) // Debug log
 		return filteredResults;
 	} catch (error) {
 		console.error('Error collecting URLs and prices:', error);
@@ -90,7 +87,7 @@ async function updatePrices() {
 				if (updateError) {
 					console.error(`Error updating price for ID ${product.id}:`, updateError);
 				} else {
-					console.log(`Successfully updated price to $${price} for ID ${product.id}`);
+					// Successfully updated price (suppress verbose logging)
 				}
 			}
 		}

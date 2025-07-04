@@ -47,6 +47,14 @@ interface CoffeeSource {
 // Logger to collect logs during execution
 class LogCollector {
   private logs: Record<string, Record<string, string[]>> = {};
+  private summaryData: Record<string, { 
+    productsFound: number; 
+    newProducts: number; 
+    updatedProducts: number; 
+    errors: string[]; 
+    warnings: string[];
+    success: boolean;
+  }> = {};
 
   // Add a log entry for a specific step and source
   addLog(step: string, source: string, message: string) {
@@ -59,30 +67,78 @@ class LogCollector {
 
     this.logs[step][source].push(message);
 
-    // Also print to console for real-time debugging if needed
-    console.log(`[${source}] ${message}`);
+    // Initialize summary data if not exists
+    if (!this.summaryData[source]) {
+      this.summaryData[source] = {
+        productsFound: 0,
+        newProducts: 0,
+        updatedProducts: 0,
+        errors: [],
+        warnings: [],
+        success: false
+      };
+    }
+
+    // Extract key metrics from messages
+    if (message.includes('Found') && message.includes('total products')) {
+      const match = message.match(/Found (\d+) total products/);
+      if (match) this.summaryData[source].productsFound = parseInt(match[1]);
+    }
+    
+    if (message.includes('Added') && message.includes('new products')) {
+      const match = message.match(/Added (\d+) new products/);
+      if (match) this.summaryData[source].newProducts = parseInt(match[1]);
+    }
+
+    if (message.includes('Updating prices for') && message.includes('in-stock items')) {
+      const match = message.match(/Updating prices for (\d+) in-stock items/);
+      if (match) this.summaryData[source].updatedProducts = parseInt(match[1]);
+    }
+
+    if (step === 'Error' || message.toLowerCase().includes('error')) {
+      this.summaryData[source].errors.push(message);
+    }
+    
+    if (step === 'Warning' || message.toLowerCase().includes('warning')) {
+      this.summaryData[source].warnings.push(message);
+    }
+
+    if (message.includes('completed successfully') || message.includes('Completed successfully')) {
+      this.summaryData[source].success = true;
+    }
+
+    // Only print errors and warnings to console during execution
+    if (step === 'Error' || step === 'Warning') {
+      console.log(`[${source}] ${step}: ${message}`);
+    }
   }
 
-  // Print all collected logs in a consolidated format
+  // Print simplified summary
   printConsolidatedLogs() {
     console.log('\n===== COFFEE SCRAPER EXECUTION SUMMARY =====\n');
 
-    // Get all steps in order
-    const steps = Object.keys(this.logs).sort();
-
-    for (const step of steps) {
-      console.log(`${step}:`);
-
-      // Get all sources for this step
-      const sources = Object.keys(this.logs[step]);
-
-      // Print each source's logs for this step
-      for (const source of sources) {
-        for (const message of this.logs[step][source]) {
-          console.log(`  [${source}] ${message}`);
-        }
+    const sources = Object.keys(this.summaryData);
+    
+    for (const source of sources) {
+      const data = this.summaryData[source];
+      const status = data.success ? '✓' : '✗';
+      
+      console.log(`${status} ${source.toUpperCase()}:`);
+      console.log(`  Products found: ${data.productsFound}`);
+      console.log(`  New products added: ${data.newProducts}`);
+      console.log(`  Products updated: ${data.updatedProducts}`);
+      
+      if (data.errors.length > 0) {
+        console.log(`  Errors (${data.errors.length}):`);
+        data.errors.forEach(error => console.log(`    - ${error}`));
       }
-      console.log(''); // Add blank line between steps
+      
+      if (data.warnings.length > 0) {
+        console.log(`  Warnings (${data.warnings.length}):`);
+        data.warnings.forEach(warning => console.log(`    - ${warning}`));
+      }
+      
+      console.log('');
     }
 
     console.log('===== END OF SUMMARY =====\n');
@@ -500,13 +556,11 @@ class SweetMariasSource implements CoffeeSource {
           'Timed out waiting for product list. The bot detection page was likely not bypassed.'
         );
 
-        // Enhanced error debugging
+        // Enhanced error debugging - only log to internal logs, not console
         const finalTitle = await page.title();
         const finalUrl = page.url();
-        const pageContent = await page.content();
-        logger.addLog('Debug', this.name, `Final page title: "${finalTitle}"`);
-        logger.addLog('Debug', this.name, `Final URL: ${finalUrl}`);
-        logger.addLog('Debug', this.name, `Page content (first 1000 chars): ${pageContent.substring(0, 1000)}`);
+        logger.addLog('Error', this.name, `Final page title: "${finalTitle}"`);
+        logger.addLog('Error', this.name, `Final URL: ${finalUrl}`);
 
         BypassMonitor.recordFailure();
         await context.close();
@@ -528,10 +582,8 @@ class SweetMariasSource implements CoffeeSource {
       });
 
       if (urlsAndPrices.length === 0) {
-        // logger.addLog('Debug', this.name, 'Product selector was found, but evaluation returned 0 products.');
+        // Product selector was found, but evaluation returned 0 products - suppress verbose logging
         const pageContent = await page.content();
-        // logger.addLog('Debug', this.name, `Current page URL: ${page.url()}`);
-        // logger.addLog('Debug', this.name, `Page content (first 500 chars): ${pageContent.substring(0, 500)}`);
       }
 
       await context.close();
@@ -558,11 +610,7 @@ class SweetMariasSource implements CoffeeSource {
       if (page) {
         try {
           const pageContent = await page.content();
-          /* logger.addLog(
-            'Debug',
-            this.name,
-            `Page content on error (first 500 chars): ${pageContent.substring(0, 500)}`
-          ); */
+          // Page content captured for debugging (suppress verbose logging)
         } catch (contentError) {
           const ce = contentError as Error;
           logger.addLog('Error', this.name, `Could not get page content on error: ${ce.message}`);
@@ -670,7 +718,7 @@ class SweetMariasSource implements CoffeeSource {
           timeout: 5000,
         });
       } catch (error) {
-        console.log('Farm notes tab not found or not clickable');
+        // Farm notes tab not found or not clickable - suppress verbose logging
       }
 
       const farmNotes = await page.evaluate(() => {
@@ -688,7 +736,7 @@ class SweetMariasSource implements CoffeeSource {
           timeout: 5000,
         });
       } catch (error) {
-        console.log('Specs tab not found or not clickable');
+        // Specs tab not found or not clickable - suppress verbose logging
       }
 
       const specs = await page.evaluate(() => {
@@ -731,7 +779,7 @@ class SweetMariasSource implements CoffeeSource {
         type: specs['Type'] || null,
       };
     } catch (error) {
-      console.error(`Error scraping ${url}:`, error);
+      logger.addLog('Error', this.name, `Error scraping ${url}: ${error}`);
       await context.close();
       return null;
     }
@@ -755,9 +803,7 @@ class CaptainCoffeeSource implements CoffeeSource {
       await scrollDownUntilNoMoreContent(page);
 
       const initPageData = await page.evaluate(() => {
-        console.log('Starting page evaluation...');
         const products = document.querySelectorAll('.product-collection.products-grid.row > div');
-        console.log('Found products:', products.length);
 
         return Array.from(products).map((product) => {
           const linkElement = product.querySelector('.product-image > a') as HTMLAnchorElement;
@@ -779,11 +825,7 @@ class CaptainCoffeeSource implements CoffeeSource {
                 const url = linkElement ? linkElement.href : null;
                 const price = oneLbVariant.available ? oneLbVariant.price / 100 : null;
 
-                console.log('Found 1 lb variant:', {
-                  url,
-                  price,
-                  available: oneLbVariant.available,
-                });
+                // Found 1 lb variant - suppress verbose logging
 
                 // Only return price if the variant is available
                 return {
@@ -793,24 +835,22 @@ class CaptainCoffeeSource implements CoffeeSource {
               }
             }
           } catch (e) {
-            console.error('Failed to parse product JSON:', e);
+            // Failed to parse product JSON - suppress verbose logging
           }
 
           return { url: null, price: null };
         });
       });
 
-      //console.log('All collected data:', initPageData);
       await browser.close();
 
       const filteredResults = initPageData.filter(
         (item): item is ProductData => item.url !== null && typeof item.url === 'string' && item.price !== null
       );
-      //console.log('Filtered results:', filteredResults);
 
       return filteredResults;
     } catch (error) {
-      console.error('Error collecting initial page data:', error);
+      logger.addLog('Error', this.name, `Error collecting initial page data: ${error}`);
       await browser.close();
       return [];
     }
@@ -950,7 +990,7 @@ class CaptainCoffeeSource implements CoffeeSource {
         processing: detailsFromPage.details.processing?.replace(/^[^:]*:\s*/, '').trim() || null,
       };
     } catch (error) {
-      console.error(`Error scraping ${url}:`, error);
+      logger.addLog('Error', this.name, `Error scraping ${url}: ${error}`);
       await browser.close();
       return null;
     }
@@ -990,7 +1030,7 @@ class BodhiLeafSource implements CoffeeSource {
       );
       return filteredResults;
     } catch (error) {
-      console.error('Error collecting URLs and prices:', error);
+      logger.addLog('Error', this.name, `Error collecting URLs and prices: ${error}`);
       await browser.close();
       return [];
     }
@@ -1161,7 +1201,7 @@ class BodhiLeafSource implements CoffeeSource {
         processing: productData.processing,
       };
     } catch (error) {
-      console.error(`Error scraping ${url}:`, error);
+      logger.addLog('Error', this.name, `Error scraping ${url}: ${error}`);
       await browser.close();
       return null;
     }
@@ -1208,7 +1248,7 @@ class ShowroomCoffeeSource implements CoffeeSource {
       );
       return filteredResults;
     } catch (error) {
-      console.error('Error collecting URLs and prices:', error);
+      logger.addLog('Error', this.name, `Error collecting URLs and prices: ${error}`);
       await browser.close();
       return [];
     }
@@ -1295,7 +1335,7 @@ class ShowroomCoffeeSource implements CoffeeSource {
         processing: tableData['processing method'] || null,
       };
     } catch (error) {
-      console.error(`Error scraping ${url}:`, error);
+      logger.addLog('Error', this.name, `Error scraping ${url}: ${error}`);
       await browser.close();
       return null;
     }
@@ -1511,7 +1551,6 @@ async function updateDatabase(source: CoffeeSource) {
     return { success: true };
   } catch (error) {
     logger.addLog('Error', source.name, `Error updating database: ${error}`);
-    console.error(`[${source.name}] Error updating database:`, error);
     throw error;
   }
 }
@@ -1595,7 +1634,6 @@ if (isMainModule) {
           })
           .catch((error) => {
             logger.addLog('Error', source.name, `Error: ${error.message}`);
-            console.error(`${source.name} Error:`, error);
             return { success: false, source: source.name };
           })
       )
@@ -1607,7 +1645,7 @@ if (isMainModule) {
         process.exit(0);
       })
       .catch((error) => {
-        console.error('Fatal error:', error);
+        logger.addLog('Error', 'system', `Fatal error: ${error}`);
         logger.printConsolidatedLogs();
         process.exit(1);
       });
@@ -1636,7 +1674,7 @@ if (isMainModule) {
         process.exit(0);
       })
       .catch((error) => {
-        console.error('Error:', error);
+        logger.addLog('Error', source.name, `Error: ${error}`);
         logger.printConsolidatedLogs();
         process.exit(1);
       });

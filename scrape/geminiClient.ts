@@ -29,7 +29,7 @@ class RateLimiter {
       const oldestCall = Math.min(...this.callTimestamps);
       const waitTime = this.timeWindowMs - (now - oldestCall) + 1000; // Add 1 second buffer
 
-      console.log(`Rate limit reached. Waiting ${Math.ceil(waitTime / 1000)} seconds...`);
+      // Rate limit reached - waiting (suppress verbose logging)
       await new Promise((resolve) => setTimeout(resolve, waitTime));
 
       // Re-check after waiting
@@ -43,7 +43,7 @@ class RateLimiter {
 
       if (timeSinceLastCall < this.minDelayMs) {
         const delayTime = this.minDelayMs - timeSinceLastCall;
-        console.log(`Enforcing minimum delay. Waiting ${Math.ceil(delayTime / 1000)} seconds...`);
+        // Enforcing minimum delay (suppress verbose logging)
         await new Promise((resolve) => setTimeout(resolve, delayTime));
       }
     }
@@ -63,7 +63,7 @@ class RateLimiter {
   }
 
   async handleRateLimitError(): Promise<void> {
-    console.log('Rate limit error detected. Waiting 60 seconds before retry...');
+    // Rate limit error detected - waiting 60 seconds before retry (suppress verbose logging)
     await new Promise((resolve) => setTimeout(resolve, 60000));
     // Clear timestamps to reset tracking
     this.callTimestamps = [];
@@ -107,7 +107,7 @@ export class GeminiClient {
   private updateModel(): void {
     const currentModel = this.models[this.currentModelIndex];
     this.model = this.genAI.getGenerativeModel({ model: currentModel.name });
-    console.log(`Using model: ${currentModel.name}`);
+    // Using model (suppress verbose logging)
   }
 
   private isModelBlocked(error: any): boolean {
@@ -130,7 +130,7 @@ export class GeminiClient {
     currentModel.failureCount++;
     currentModel.lastFailureTime = Date.now();
 
-    console.log(`Model ${currentModel.name} failed ${currentModel.failureCount} times`);
+    // Model failed multiple times (suppress verbose logging)
 
     // Check if current model has exceeded failure threshold
     if (currentModel.failureCount >= this.modelFailureThreshold) {
@@ -143,16 +143,12 @@ export class GeminiClient {
         if (nextIndex === 0) {
           const timeSinceLastFailure = Date.now() - nextModel.lastFailureTime;
           if (timeSinceLastFailure < this.cooldownPeriodMs) {
-            console.log(
-              `Primary model still in cooldown. ${Math.ceil(
-                (this.cooldownPeriodMs - timeSinceLastFailure) / 60000
-              )} minutes remaining.`
-            );
+            // Primary model still in cooldown (suppress verbose logging)
             continue;
           } else {
             // Reset primary model failure count after cooldown
             nextModel.failureCount = 0;
-            console.log('Primary model cooldown complete. Resetting to primary model.');
+            // Primary model cooldown complete - resetting to primary model
           }
         }
 
@@ -160,13 +156,13 @@ export class GeminiClient {
         if (nextModel.failureCount < this.modelFailureThreshold) {
           this.currentModelIndex = nextIndex;
           this.updateModel();
-          console.log(`Switched to model: ${nextModel.name}`);
+          // Switched to model (suppress verbose logging)
           return true;
         }
       }
 
       // All models are blocked, wait for cooldown
-      console.log('All models are blocked. Waiting for primary model cooldown...');
+      // All models are blocked - waiting for primary model cooldown
       return false;
     }
 
@@ -190,7 +186,7 @@ export class GeminiClient {
         this.models[0].failureCount = 0;
         this.currentModelIndex = 0;
         this.updateModel();
-        console.log('Cooldown complete. Reset to primary model.');
+        // Cooldown complete - reset to primary model
       }
     }
 
@@ -222,14 +218,11 @@ export class GeminiClient {
           data: text,
         };
       } catch (error) {
-        console.error(
-          `Gemini API attempt ${attempt} failed with model ${this.models[this.currentModelIndex].name}:`,
-          error
-        );
+        // Gemini API attempt failed (suppress verbose logging)
 
         // Check if it's a model blocking error (quota/403/rate limit/etc)
         if (this.isModelBlocked(error)) {
-          console.log(`Model blocking error detected: ${error.message || error}`);
+          // Model blocking error detected (suppress verbose logging)
 
           // Try to switch to next model
           const switched = await this.handleModelFailure();
