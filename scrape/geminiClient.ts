@@ -88,6 +88,7 @@ export class GeminiClient {
     { name: 'gemini-2.5-flash-preview-04-17', failureCount: 0, lastFailureTime: 0 },
     { name: 'gemini-2.5-flash', failureCount: 0, lastFailureTime: 0 },
     { name: 'gemini-2.5-flash-lite-preview-06-17', failureCount: 0, lastFailureTime: 0 },
+    { name: 'gemini-2.0-flash-exp', failureCount: 0, lastFailureTime: 0 },
   ];
   private currentModelIndex = 0;
   private readonly modelFailureThreshold = 2;
@@ -118,7 +119,9 @@ export class GeminiClient {
         error.message?.includes('limit') ||
         error.message?.includes('blocked') ||
         error.message?.includes('429') ||
-        error.message?.includes('403'))
+        error.message?.includes('403') ||
+        error.message?.includes('rate limit') ||
+        error.message?.includes('Too Many Requests'))
     );
   }
 
@@ -224,15 +227,7 @@ export class GeminiClient {
           error
         );
 
-        // Check if it's a standard rate limit error (handled by rate limiter)
-        if (this.rateLimiter.isRateLimitError(error)) {
-          await this.rateLimiter.handleRateLimitError();
-          // Don't count rate limit errors against retry attempts
-          attempt--;
-          continue;
-        }
-
-        // Check if it's a model blocking error (quota/403/etc)
+        // Check if it's a model blocking error (quota/403/rate limit/etc)
         if (this.isModelBlocked(error)) {
           console.log(`Model blocking error detected: ${error.message || error}`);
 
@@ -408,7 +403,7 @@ Read a free-form coffee descriptions and return a tasting profile as _strict_ JS
 ✱ Each attribute must have:
 • score — integer 1-5
 • tag — 1-3 words, lower-case, separated by spaces; can be independent descriptors or phrase descriptors; tags should be creative and unique
-• color — hex code (e.g. "#7f4a94") that visually represents the tag; colors should trend vibrant over realistic
+• color — hex code (e.g. "#7f4a94") that visually represents the tag; colors should be **vibrant**; you **CANNOT** use bland colors such as gray, brown, tan unless *highly* relevant to the coffee tags
 
 SCALE GUIDE
 1 = very weak / defective 2 = weak 3 = moderate 4 = strong 5 = exceptional
