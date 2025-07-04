@@ -2,6 +2,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import { validateTastingNotes, sanitizeTastingNotes, type TastingNotes } from './tastingNotesValidator.js';
 
 dotenv.config();
 
@@ -81,12 +82,12 @@ export class GeminiClient {
   private readonly maxRetries = 2;
   private readonly retryDelay = 1000; // 1 second
   private rateLimiter = new RateLimiter();
-  
+
   // Model fallback configuration
   private models: ModelConfig[] = [
     { name: 'gemini-2.5-flash-preview-04-17', failureCount: 0, lastFailureTime: 0 },
     { name: 'gemini-2.5-flash', failureCount: 0, lastFailureTime: 0 },
-    { name: 'gemini-2.5-flash-lite-preview-06-17', failureCount: 0, lastFailureTime: 0 }
+    { name: 'gemini-2.5-flash-lite-preview-06-17', failureCount: 0, lastFailureTime: 0 },
   ];
   private currentModelIndex = 0;
   private readonly modelFailureThreshold = 2;
@@ -109,14 +110,15 @@ export class GeminiClient {
   }
 
   private isModelBlocked(error: any): boolean {
-    return error && (
-      error.status === 429 ||
-      error.status === 403 ||
-      error.message?.includes('quota') ||
-      error.message?.includes('limit') ||
-      error.message?.includes('blocked') ||
-      error.message?.includes('429') ||
-      error.message?.includes('403')
+    return (
+      error &&
+      (error.status === 429 ||
+        error.status === 403 ||
+        error.message?.includes('quota') ||
+        error.message?.includes('limit') ||
+        error.message?.includes('blocked') ||
+        error.message?.includes('429') ||
+        error.message?.includes('403'))
     );
   }
 
@@ -124,21 +126,25 @@ export class GeminiClient {
     const currentModel = this.models[this.currentModelIndex];
     currentModel.failureCount++;
     currentModel.lastFailureTime = Date.now();
-    
+
     console.log(`Model ${currentModel.name} failed ${currentModel.failureCount} times`);
-    
+
     // Check if current model has exceeded failure threshold
     if (currentModel.failureCount >= this.modelFailureThreshold) {
       // Try to find next available model
       for (let i = 1; i < this.models.length; i++) {
         const nextIndex = (this.currentModelIndex + i) % this.models.length;
         const nextModel = this.models[nextIndex];
-        
+
         // Check if it's the primary model and if cooldown period has passed
         if (nextIndex === 0) {
           const timeSinceLastFailure = Date.now() - nextModel.lastFailureTime;
           if (timeSinceLastFailure < this.cooldownPeriodMs) {
-            console.log(`Primary model still in cooldown. ${Math.ceil((this.cooldownPeriodMs - timeSinceLastFailure) / 60000)} minutes remaining.`);
+            console.log(
+              `Primary model still in cooldown. ${Math.ceil(
+                (this.cooldownPeriodMs - timeSinceLastFailure) / 60000
+              )} minutes remaining.`
+            );
             continue;
           } else {
             // Reset primary model failure count after cooldown
@@ -146,7 +152,7 @@ export class GeminiClient {
             console.log('Primary model cooldown complete. Resetting to primary model.');
           }
         }
-        
+
         // Check if this model is available (not over failure threshold)
         if (nextModel.failureCount < this.modelFailureThreshold) {
           this.currentModelIndex = nextIndex;
@@ -155,28 +161,28 @@ export class GeminiClient {
           return true;
         }
       }
-      
+
       // All models are blocked, wait for cooldown
       console.log('All models are blocked. Waiting for primary model cooldown...');
       return false;
     }
-    
+
     return true; // Current model can still be used
   }
 
   private async handleModelFailure(): Promise<boolean> {
     const switched = this.switchToNextModel();
-    
+
     if (!switched) {
       // All models blocked, wait for primary model cooldown
       const primaryModel = this.models[0];
       const timeSinceLastFailure = Date.now() - primaryModel.lastFailureTime;
       const waitTime = this.cooldownPeriodMs - timeSinceLastFailure;
-      
+
       if (waitTime > 0) {
         console.log(`All models blocked. Waiting ${Math.ceil(waitTime / 60000)} minutes for primary model cooldown...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
         // Reset to primary model after cooldown
         this.models[0].failureCount = 0;
         this.currentModelIndex = 0;
@@ -184,14 +190,14 @@ export class GeminiClient {
         console.log('Cooldown complete. Reset to primary model.');
       }
     }
-    
+
     return true;
   }
 
   getModelStatus(): { currentModel: string; models: ModelConfig[] } {
     return {
       currentModel: this.models[this.currentModelIndex].name,
-      models: [...this.models]
+      models: [...this.models],
     };
   }
 
@@ -213,7 +219,10 @@ export class GeminiClient {
           data: text,
         };
       } catch (error) {
-        console.error(`Gemini API attempt ${attempt} failed with model ${this.models[this.currentModelIndex].name}:`, error);
+        console.error(
+          `Gemini API attempt ${attempt} failed with model ${this.models[this.currentModelIndex].name}:`,
+          error
+        );
 
         // Check if it's a standard rate limit error (handled by rate limiter)
         if (this.rateLimiter.isRateLimitError(error)) {
@@ -226,7 +235,7 @@ export class GeminiClient {
         // Check if it's a model blocking error (quota/403/etc)
         if (this.isModelBlocked(error)) {
           console.log(`Model blocking error detected: ${error.message || error}`);
-          
+
           // Try to switch to next model
           const switched = await this.handleModelFailure();
           if (switched) {
@@ -245,7 +254,9 @@ export class GeminiClient {
         if (attempt === this.maxRetries) {
           return {
             success: false,
-            error: `Failed after ${this.maxRetries} attempts with model ${this.models[this.currentModelIndex].name}: ${error}`,
+            error: `Failed after ${this.maxRetries} attempts with model ${
+              this.models[this.currentModelIndex].name
+            }: ${error}`,
           };
         }
 
@@ -367,6 +378,121 @@ Respond with only the description text, no additional formatting or explanation.
       success: true,
       data: description,
     };
+  }
+
+  async generateAiTastingNotes(
+    descriptionLong: string | null,
+    descriptionShort: string | null,
+    cuppingNotes: string | null
+  ): Promise<GeminiResponse> {
+    const availableDescriptions = [
+      descriptionLong && `Long Description: ${descriptionLong}`,
+      descriptionShort && `Short Description: ${descriptionShort}`,
+      cuppingNotes && `Cupping Notes: ${cuppingNotes}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    if (!availableDescriptions) {
+      return {
+        success: false,
+        error: 'No description text available for AI tasting notes generation',
+      };
+    }
+
+    const tastingNotesPrompt = `
+You are a certified Q-grader.
+Read a free-form coffee descriptions and return a tasting profile as _strict_ JSON.
+✱ Use **only** the schema below.
+✱ Do **not** wrap the JSON in markdown.
+✱ Each attribute must have:
+• score — integer 1-5
+• tag — 1-3 words, lower-case, separated by spaces; can be independent descriptors or phrase descriptors; tags should be creative and unique
+• color — hex code (e.g. "#7f4a94") that visually represents the tag; colors should trend vibrant over realistic
+
+SCALE GUIDE
+1 = very weak / defective 2 = weak 3 = moderate 4 = strong 5 = exceptional
+
+ATTRIBUTE EXAMPLES
+fragrance_aroma – jasmine (#e5e4e2), cocoa (#4b3621)
+flavor – berry (#b3164b), caramel (#c68f53)
+acidity – bright (#f4d35e), mellow (#a3c1ad)
+body – light (#d7ccc8), syrupy (#5d4037)
+sweetness – honey like (#e4b169), brown sugar (#6f4e37)
+
+OUTPUT SCHEMA
+{
+"fragrance_aroma": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" },
+"flavor": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" },
+"acidity": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" },
+"body": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" },
+"sweetness": { "score": <1-5>, "tag": "<1 to 3 words>", "color": "<#RRGGBB>" }
+}
+
+Default rule: if unsure of an output, infer from context or assign score 3 and tag "average" with color "#8b5a2b".
+
+FEW-SHOT EXAMPLES:
+
+Example 1:
+{
+"fragrance_aroma": { "score": 5, "tag": "blueberry jam", "color": "#4f2a57" },
+"flavor": { "score": 5, "tag": "cola cherry raspberry", "color": "#b3164b" },
+"acidity": { "score": 4, "tag": "lemon lime citrus", "color": "#d0e36c" },
+"body": { "score": 3, "tag": "medium", "color": "#d7ccc8" },
+"sweetness": { "score": 4, "tag": "honey like syrup", "color": "#e4b169" }
+}
+
+Example 2:
+{
+"fragrance_aroma": { "score": 3, "tag": "peanutty", "color": "#c69c6d" },
+"flavor": { "score": 3, "tag": "milk chocolate nougat", "color": "#7b4b2a" },
+"acidity": { "score": 2, "tag": "soft short", "color": "#a3c1ad" },
+"body": { "score": 4, "tag": "creamy", "color": "#bfa58f" },
+"sweetness": { "score": 3, "tag": "brown sugar", "color": "#6f4e37" }
+}
+
+SOURCE MATERIAL:
+""${availableDescriptions}""
+
+Generate tasting notes following the exact schema above. Return only the JSON object, no additional text.
+`;
+
+    const response = await this.generateContent(tastingNotesPrompt);
+
+    if (!response.success) {
+      return response;
+    }
+
+    try {
+      // Clean the response text and parse JSON
+      const cleanedResponse = response.data.replace(/```json\n?|\n?```/g, '').trim();
+      const parsedData = JSON.parse(cleanedResponse);
+
+      // Sanitize the data to fix common formatting issues
+      const sanitizedData = sanitizeTastingNotes(parsedData);
+
+      // Validate the tasting notes structure
+      const validationResult = validateTastingNotes(sanitizedData);
+
+      if (!validationResult.success) {
+        return {
+          success: false,
+          error: `Tasting notes validation failed: ${validationResult.errors?.join(', ')}. Raw response: ${
+            response.data
+          }`,
+        };
+      }
+
+      return {
+        success: true,
+        data: validationResult.data,
+      };
+    } catch (parseError) {
+      return {
+        success: false,
+        error: `Failed to parse tasting notes JSON: ${parseError}. Raw response: ${response.data}`,
+      };
+    }
   }
 }
 

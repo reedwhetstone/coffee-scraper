@@ -23,8 +23,9 @@ export interface ScrapedDataForCleaning {
   appearance: string | null;
   roastRecs: string | null;
   type: string | null;
-  cuppingNotes?: string | null;
+  cuppingNotes: string | null;
   aiDescription?: string | null;
+  aiTastingNotes?: any; // JSON object for tasting notes
   [key: string]: any;
 }
 
@@ -53,14 +54,23 @@ export class DataCleaner {
   }
 
   private isNullOrEmpty(value: any): boolean {
-    return value === null || value === undefined || 
-           (typeof value === 'string' && value.trim() === '');
+    return value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
   }
 
   private hasAvailableDescriptions(data: ScrapedDataForCleaning): boolean {
-    return !this.isNullOrEmpty(data.descriptionLong) || 
-           !this.isNullOrEmpty(data.descriptionShort) || 
-           !this.isNullOrEmpty(data.farmNotes);
+    return (
+      !this.isNullOrEmpty(data.descriptionLong) ||
+      !this.isNullOrEmpty(data.descriptionShort) ||
+      !this.isNullOrEmpty(data.farmNotes)
+    );
+  }
+
+  private hasAvailableTastingData(data: ScrapedDataForCleaning): boolean {
+    return (
+      !this.isNullOrEmpty(data.descriptionLong) ||
+      !this.isNullOrEmpty(data.descriptionShort) ||
+      !this.isNullOrEmpty(data.cuppingNotes)
+    );
   }
 
   async cleanData(data: ScrapedDataForCleaning, sourceName: string): Promise<CleaningResult> {
@@ -68,7 +78,7 @@ export class DataCleaner {
       originalData: { ...data },
       cleanedData: { ...data },
       fieldsProcessed: [],
-      errors: []
+      errors: [],
     };
 
     // Check if we have any description text to work with
@@ -78,24 +88,28 @@ export class DataCleaner {
     }
 
     // Find NULL fields that can be cleaned
-    const nullFields = CLEANING_FIELD_CONFIGS
-      .map(config => config.field)
-      .filter(field => this.isNullOrEmpty(data[field]));
+    const nullFields = CLEANING_FIELD_CONFIGS.map((config) => config.field).filter((field) =>
+      this.isNullOrEmpty(data[field])
+    );
 
     if (nullFields.length === 0) {
       this.log('Data Cleaning', sourceName, 'No NULL fields found that can be cleaned');
       return result;
     }
 
-    this.log('Data Cleaning', sourceName, `Found ${nullFields.length} NULL fields to process: ${nullFields.join(', ')}`);
+    this.log(
+      'Data Cleaning',
+      sourceName,
+      `Found ${nullFields.length} NULL fields to process: ${nullFields.join(', ')}`
+    );
 
     // Process each NULL field
     for (const fieldName of nullFields) {
       try {
         const cleanedValue = await this.cleanField(
-          fieldName, 
-          data.descriptionLong, 
-          data.descriptionShort, 
+          fieldName,
+          data.descriptionLong,
+          data.descriptionShort,
           data.farmNotes,
           sourceName
         );
@@ -114,10 +128,14 @@ export class DataCleaner {
       }
 
       // Add a small delay between API calls to be respectful
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    this.log('Data Cleaning', sourceName, `Cleaning complete. Processed ${result.fieldsProcessed.length} fields, ${result.errors.length} errors`);
+    this.log(
+      'Data Cleaning',
+      sourceName,
+      `Cleaning complete. Processed ${result.fieldsProcessed.length} fields, ${result.errors.length} errors`
+    );
     return result;
   }
 
@@ -130,11 +148,11 @@ export class DataCleaner {
   ): Promise<string | null> {
     try {
       const prompt = createCleaningPrompt(fieldName, descriptionLong, descriptionShort, farmNotes);
-      
+
       this.log('Data Cleaning', sourceName, `Processing field "${fieldName}" with Gemini API`);
-      
+
       const response = await this.geminiClient.extractCoffeeData(prompt);
-      
+
       if (!response.success) {
         throw new Error(response.error || 'Unknown API error');
       }
@@ -148,7 +166,7 @@ export class DataCleaner {
       }
 
       // Apply field-specific validation if available
-      const config = CLEANING_FIELD_CONFIGS.find(c => c.field === fieldName);
+      const config = CLEANING_FIELD_CONFIGS.find((c) => c.field === fieldName);
       if (config?.validation && !config.validation(value)) {
         this.log('Warning', sourceName, `Validation failed for field "${fieldName}" with value: ${value}`);
         return null;
@@ -170,7 +188,7 @@ export class DataCleaner {
       originalData: { ...data },
       cleanedData: { ...data },
       fieldsProcessed: [],
-      errors: []
+      errors: [],
     };
 
     if (!this.hasAvailableDescriptions(data)) {
@@ -178,8 +196,8 @@ export class DataCleaner {
       return result;
     }
 
-    const targetFields = fieldsToClean || CLEANING_FIELD_CONFIGS.map(config => config.field);
-    const nullFields = targetFields.filter(field => this.isNullOrEmpty(data[field]));
+    const targetFields = fieldsToClean || CLEANING_FIELD_CONFIGS.map((config) => config.field);
+    const nullFields = targetFields.filter((field) => this.isNullOrEmpty(data[field]));
 
     if (nullFields.length === 0) {
       this.log('Data Cleaning', sourceName, 'No NULL fields found for batch cleaning');
@@ -187,12 +205,17 @@ export class DataCleaner {
     }
 
     try {
-      const batchPrompt = this.createBatchPrompt(nullFields, data.descriptionLong, data.descriptionShort, data.farmNotes);
-      
+      const batchPrompt = this.createBatchPrompt(
+        nullFields,
+        data.descriptionLong,
+        data.descriptionShort,
+        data.farmNotes
+      );
+
       this.log('Data Cleaning', sourceName, `Batch processing ${nullFields.length} fields: ${nullFields.join(', ')}`);
-      
+
       const response = await this.geminiClient.extractCoffeeData(batchPrompt);
-      
+
       if (!response.success) {
         throw new Error(response.error || 'Batch processing failed');
       }
@@ -202,10 +225,10 @@ export class DataCleaner {
       // Process each field from the batch response
       for (const fieldName of nullFields) {
         const value = extractedData[fieldName];
-        
+
         if (!this.isNullOrEmpty(value)) {
           // Apply field-specific validation
-          const config = CLEANING_FIELD_CONFIGS.find(c => c.field === fieldName);
+          const config = CLEANING_FIELD_CONFIGS.find((c) => c.field === fieldName);
           if (!config?.validation || config.validation(value)) {
             result.cleanedData[fieldName] = String(value).trim();
             result.fieldsProcessed.push(fieldName);
@@ -216,7 +239,11 @@ export class DataCleaner {
         }
       }
 
-      this.log('Data Cleaning', sourceName, `Batch cleaning complete. Processed ${result.fieldsProcessed.length} fields`);
+      this.log(
+        'Data Cleaning',
+        sourceName,
+        `Batch cleaning complete. Processed ${result.fieldsProcessed.length} fields`
+      );
     } catch (error) {
       const errorMsg = `Batch cleaning failed: ${error}`;
       result.errors.push(errorMsg);
@@ -236,6 +263,19 @@ export class DataCleaner {
       this.log('Error', sourceName, errorMsg);
     }
 
+    // Generate AI tasting notes after field cleaning
+    try {
+      const aiTastingNotes = await this.generateAiTastingNotes(result.cleanedData, sourceName);
+      if (aiTastingNotes) {
+        result.cleanedData.aiTastingNotes = aiTastingNotes;
+        result.fieldsProcessed.push('aiTastingNotes');
+      }
+    } catch (error) {
+      const errorMsg = `AI tasting notes generation failed: ${error}`;
+      result.errors.push(errorMsg);
+      this.log('Error', sourceName, errorMsg);
+    }
+
     return result;
   }
 
@@ -248,13 +288,17 @@ export class DataCleaner {
     const availableDescriptions = [
       descriptionLong && `Long Description: ${descriptionLong}`,
       descriptionShort && `Short Description: ${descriptionShort}`,
-      farmNotes && `Farm Notes: ${farmNotes}`
-    ].filter(Boolean).join('\n\n');
+      farmNotes && `Farm Notes: ${farmNotes}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
-    const fieldDescriptions = fields.map(field => {
-      const config = CLEANING_FIELD_CONFIGS.find(c => c.field === field);
-      return `- ${field}: ${config?.prompt || 'Extract relevant information'}`;
-    }).join('\n');
+    const fieldDescriptions = fields
+      .map((field) => {
+        const config = CLEANING_FIELD_CONFIGS.find((c) => c.field === field);
+        return `- ${field}: ${config?.prompt || 'Extract relevant information'}`;
+      })
+      .join('\n');
 
     return `Extract the following coffee information fields from the provided descriptions:
 
@@ -266,10 +310,7 @@ ${availableDescriptions}
 Return a JSON object with the requested fields. Use null for any field where information is not clearly available.`;
   }
 
-  async generateAiDescription(
-    data: ScrapedDataForCleaning, 
-    sourceName: string
-  ): Promise<string | null> {
+  async generateAiDescription(data: ScrapedDataForCleaning, sourceName: string): Promise<string | null> {
     if (!this.hasAvailableDescriptions(data)) {
       this.log('AI Description', sourceName, 'No description text available for AI description generation');
       return null;
@@ -277,7 +318,7 @@ Return a JSON object with the requested fields. Use null for any field where inf
 
     try {
       this.log('AI Description', sourceName, 'Generating AI description with Gemini API');
-      
+
       const response = await this.geminiClient.generateAiDescription(
         data.descriptionLong,
         data.descriptionShort,
@@ -291,16 +332,53 @@ Return a JSON object with the requested fields. Use null for any field where inf
 
       const description = response.data;
       const wordCount = description.split(/\s+/).length;
-      
+
       this.log(
-        'AI Description', 
-        sourceName, 
-        `Successfully generated AI description (${wordCount} words): ${description.substring(0, 100)}${description.length > 100 ? '...' : ''}`
+        'AI Description',
+        sourceName,
+        `Successfully generated AI description (${wordCount} words): ${description.substring(0, 100)}${
+          description.length > 100 ? '...' : ''
+        }`
       );
-      
+
       return description;
     } catch (error) {
       this.log('Error', sourceName, `AI description generation error: ${error}`);
+      return null;
+    }
+  }
+
+  async generateAiTastingNotes(data: ScrapedDataForCleaning, sourceName: string): Promise<any | null> {
+    if (!this.hasAvailableTastingData(data)) {
+      this.log('AI Tasting Notes', sourceName, 'No tasting data available for AI tasting notes generation');
+      return null;
+    }
+
+    try {
+      this.log('AI Tasting Notes', sourceName, 'Generating AI tasting notes with Gemini API');
+
+      const response = await this.geminiClient.generateAiTastingNotes(
+        data.descriptionLong,
+        data.descriptionShort,
+        data.cuppingNotes
+      );
+
+      if (!response.success) {
+        this.log('Warning', sourceName, `AI tasting notes generation failed: ${response.error}`);
+        return null;
+      }
+
+      const tastingNotes = response.data;
+
+      this.log(
+        'AI Tasting Notes',
+        sourceName,
+        `Successfully generated AI tasting notes: ${JSON.stringify(tastingNotes).substring(0, 150)}...`
+      );
+
+      return tastingNotes;
+    } catch (error) {
+      this.log('Error', sourceName, `AI tasting notes generation error: ${error}`);
       return null;
     }
   }

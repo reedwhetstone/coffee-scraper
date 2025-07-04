@@ -1482,6 +1482,7 @@ async function updateDatabase(source: CoffeeSource) {
             cupping_notes: finalData.cuppingNotes,
             farm_notes: finalData.farmNotes,
             ai_description: finalData.aiDescription,
+            ai_tasting_notes: finalData.aiTastingNotes,
             last_updated: new Date().toISOString(), // Initial creation is an update
             stocked_date: new Date().toISOString(), // Set stocked_date when first adding to inventory
             source: source.name,

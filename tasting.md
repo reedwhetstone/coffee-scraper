@@ -25,9 +25,14 @@ llm input: description_long, description_short, farm_notes
 llm output: coffee_catalog.ai_description - short summary of the input,using unique language from the input to create a new description that would meet
 fair use.
 
-##AI TASTING NOTES coffee_catalog.ai_tasting_notes - use the prompt
-@coffee-scraper/tasting.md to start with. Create a typescript function to
-check the validity of the output from the LLM before sending it to the db.
+On top of the api infrastructure built for data cleaning & AI DESCRIPTION creation, I want to add this functionality:
+
+##AI TASTING NOTES
+llm input: description_long, description_short, cupping_notes
+llm output: coffee_catalog.ai_tasting_notes in JSON format
+
+- use the prompt below to start with. Create a typescript function to
+  check the validity of the output from the LLM before sending it to the db.
 
 Checking function requirements -
 Requirement - Where enforced
@@ -36,11 +41,13 @@ tag ≤ 3 words, lower‑case - tagRegex (allows spaces or hyphens)
 color valid hex #RRGGBB - hexColorRegex
 All five attributes present - Top‑level z.object({...}) definition
 
-I'll do the prompts with my existing gemini API that I'm already using in the coffee-app chat
+I'll do the prompts with my existing gemini API infrastructure built for aiDescription and cleaning functions
+
+##SAMPLE PROMPT
 
 SYSTEM:
 You are a certified Q‑grader.  
-Read a free‑form coffee description and return a tasting profile as _strict_ JSON.  
+Read a free‑form coffee descriptions {description*long, description_short, cupping_notes} and return a tasting profile as \_strict* JSON.  
 ✱ Use **only** the schema below.  
 ✱ Do **not** wrap the JSON in markdown.  
 ✱ Each attribute must have:
@@ -90,6 +97,3 @@ Default rule: if unsure of an output, infer from context or assign score 3 and
 "sweetness": { "score": 3, "tag": "brown-sugar", "color": "#6f4e37" }
 }
 </assistant_example_2>
-
-USER:
-<PASTE COFFEE DESCRIPTION HERE>
