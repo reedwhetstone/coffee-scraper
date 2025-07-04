@@ -12,6 +12,7 @@ import { Page } from 'playwright';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import DataCleaner from './dataCleaner.js';
 
 // Use the stealth plugin
 chromium.use(stealth());
@@ -1303,6 +1304,8 @@ class ShowroomCoffeeSource implements CoffeeSource {
 
 // Modified database update function to handle multiple sources
 async function updateDatabase(source: CoffeeSource) {
+  const dataCleaner = new DataCleaner(logger);
+
   try {
     logger.addLog('Step 1: Collecting product URLs', source.name, 'Starting collection of product URLs');
     const productsData = await source.collectInitUrlsData();
@@ -1433,26 +1436,51 @@ async function updateDatabase(source: CoffeeSource) {
         const scrapedData = await source.scrapeUrl(url, price);
 
         if (scrapedData) {
+          // Apply data cleaning to fill NULL values
+          logger.addLog(
+            'Step 5: Processing new products',
+            source.name,
+            `Applying data cleaning for: ${scrapedData.productName}`
+          );
+          const cleaningResult = await dataCleaner.batchCleanFields(scrapedData as any, source.name);
+
+          if (cleaningResult.fieldsProcessed.length > 0) {
+            logger.addLog(
+              'Step 5: Processing new products',
+              source.name,
+              `Data cleaning enhanced ${
+                cleaningResult.fieldsProcessed.length
+              } fields: ${cleaningResult.fieldsProcessed.join(', ')}`
+            );
+          }
+
+          if (cleaningResult.errors.length > 0) {
+            logger.addLog('Warning', source.name, `Data cleaning errors: ${cleaningResult.errors.join('; ')}`);
+          }
+
+          // Use the cleaned data for database insertion
+          const finalData = cleaningResult.cleanedData;
+
           const { error } = await supabase.from('coffee_catalog').insert({
             name: scrapedData.productName,
             score_value: scrapedData.scoreValue,
-            arrival_date: scrapedData.arrivalDate,
-            region: scrapedData.region,
-            processing: scrapedData.processing,
-            drying_method: scrapedData.dryingMethod,
-            lot_size: scrapedData.lotSize,
-            bag_size: scrapedData.bagSize,
-            packaging: scrapedData.packaging,
-            cultivar_detail: scrapedData.cultivarDetail,
-            grade: scrapedData.grade,
-            appearance: scrapedData.appearance,
-            roast_recs: scrapedData.roastRecs,
-            type: scrapedData.type,
+            arrival_date: finalData.arrivalDate,
+            region: finalData.region,
+            processing: finalData.processing,
+            drying_method: finalData.dryingMethod,
+            lot_size: finalData.lotSize,
+            bag_size: finalData.bagSize,
+            packaging: finalData.packaging,
+            cultivar_detail: finalData.cultivarDetail,
+            grade: finalData.grade,
+            appearance: finalData.appearance,
+            roast_recs: finalData.roastRecs,
+            type: finalData.type,
             link: scrapedData.url,
-            description_long: scrapedData.descriptionLong,
-            description_short: scrapedData.descriptionShort,
-            cupping_notes: scrapedData.cuppingNotes,
-            farm_notes: scrapedData.farmNotes,
+            description_long: finalData.descriptionLong,
+            description_short: finalData.descriptionShort,
+            cupping_notes: finalData.cuppingNotes,
+            farm_notes: finalData.farmNotes,
             last_updated: new Date().toISOString(), // Initial creation is an update
             stocked_date: new Date().toISOString(), // Set stocked_date when first adding to inventory
             source: source.name,
@@ -1465,7 +1493,7 @@ async function updateDatabase(source: CoffeeSource) {
           logger.addLog(
             'Step 5: Processing new products',
             source.name,
-            `Successfully inserted product: ${scrapedData.productName}`
+            `Successfully inserted product: ${finalData.productName}`
           );
         }
       }

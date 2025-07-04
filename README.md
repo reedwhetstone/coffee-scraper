@@ -29,6 +29,7 @@ To run for a specific source:
 npm run scrape sweet_maria
 npm run scrape captain_coffee
 npm run scrape bodhi_leaf
+npm run scrape showroom_coffee
 ```
 
 ## Recent Updates
