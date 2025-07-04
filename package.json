@@ -14,6 +14,7 @@
   "scripts": {
     "scrape": "xvfb-run tsx ./scrape/newcoffeescript.ts",
     "scrape-local": "tsx ./scrape/newcoffeescript.ts",
-    "update-prices": "tsx ./scrape/updatePrices.ts"
+    "update-prices": "tsx ./scrape/updatePrices.ts",
+    "backfill-ai-descriptions": "tsx ./scrape/backfillAiDescriptions.ts"
   }
 }
