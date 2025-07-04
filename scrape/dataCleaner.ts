@@ -24,6 +24,7 @@ export interface ScrapedDataForCleaning {
   roastRecs: string | null;
   type: string | null;
   cuppingNotes?: string | null;
+  aiDescription?: string | null;
   [key: string]: any;
 }
 
@@ -222,6 +223,19 @@ export class DataCleaner {
       this.log('Error', sourceName, errorMsg);
     }
 
+    // Generate AI description after field cleaning
+    try {
+      const aiDescription = await this.generateAiDescription(result.cleanedData, sourceName);
+      if (aiDescription) {
+        result.cleanedData.aiDescription = aiDescription;
+        result.fieldsProcessed.push('aiDescription');
+      }
+    } catch (error) {
+      const errorMsg = `AI description generation failed: ${error}`;
+      result.errors.push(errorMsg);
+      this.log('Error', sourceName, errorMsg);
+    }
+
     return result;
   }
 
@@ -250,6 +264,45 @@ Available coffee information:
 ${availableDescriptions}
 
 Return a JSON object with the requested fields. Use null for any field where information is not clearly available.`;
+  }
+
+  async generateAiDescription(
+    data: ScrapedDataForCleaning, 
+    sourceName: string
+  ): Promise<string | null> {
+    if (!this.hasAvailableDescriptions(data)) {
+      this.log('AI Description', sourceName, 'No description text available for AI description generation');
+      return null;
+    }
+
+    try {
+      this.log('AI Description', sourceName, 'Generating AI description with Gemini API');
+      
+      const response = await this.geminiClient.generateAiDescription(
+        data.descriptionLong,
+        data.descriptionShort,
+        data.farmNotes
+      );
+
+      if (!response.success) {
+        this.log('Warning', sourceName, `AI description generation failed: ${response.error}`);
+        return null;
+      }
+
+      const description = response.data;
+      const wordCount = description.split(/\s+/).length;
+      
+      this.log(
+        'AI Description', 
+        sourceName, 
+        `Successfully generated AI description (${wordCount} words): ${description.substring(0, 100)}${description.length > 100 ? '...' : ''}`
+      );
+      
+      return description;
+    } catch (error) {
+      this.log('Error', sourceName, `AI description generation error: ${error}`);
+      return null;
+    }
   }
 }
 

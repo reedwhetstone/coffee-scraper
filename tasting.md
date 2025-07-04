@@ -9,10 +9,11 @@ Using my existing gemini API (use env variable GENINI_API_KEY) I need to set up 
 4. LLM sents back output which is added to the table - for example, if the varietal is NULL but varietal is described in the description_long column,
    it would provide a revision to the varietal column with the varietal information such as "typica". The LLM should ONLY make cleaning or additive adjustments to the data when it is NULL.
 
+On top of the api infrastructure built for data cleaning, I want to add this functionality:
+
 ##AI DESCRIPTION
 
-1. LLM reads description_long, description_short, farm_notes and converts the language from these cells
-   into "translated" factual fair use converted output. Focus on informational data. Produce a fair‑use‑compliant, ~35‑word synopsis that keeps any unique origin story but strips hype.
+1. LLM reads description_long, description_short, farm_notes and converts the language from these cells into "translated" factual fair use converted output. Focus on informational data. Produce a fair‑use‑compliant, ~35‑word synopsis that keeps any unique origin story but strips hype.
 2. Synopsys output is sent to ai.description
 
 Fair‑use & compliance
