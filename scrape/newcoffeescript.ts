@@ -905,7 +905,7 @@ class CaptainCoffeeSource implements CoffeeSource {
           if (text.includes('Processing:')) details.processing = text;
           if (text.includes('Grower:')) details.grower = text;
           if (text.match(/Region:?\s/i)) details.region = text;
-          if (text.match(/Varieties?:?\s/i)) details.cultivar = text;
+          if (text.match(/Variet(y|ies|al|als):?\s/)) details.cultivar = text;
         });
 
         return {
@@ -941,13 +941,13 @@ class CaptainCoffeeSource implements CoffeeSource {
         arrivalDate: detailsFromPage.arrivalDate?.replace('Arrival Date:', '').trim() || null,
         packaging: detailsFromPage.packaging,
         type: importer || null,
-        cultivarDetail: detailsFromPage.details.cultivar?.replace('Varieties:', '').trim() || null,
-        grade: detailsFromPage.details.grade?.replace('Grade:', '').trim() || null,
+        cultivarDetail: detailsFromPage.details.cultivar?.replace(/^[^:]*:\s*/, '').trim() || null,
+        grade: detailsFromPage.details.grade?.replace(/^[^:]*:\s*/, '').trim() || null,
         appearance: null,
         roastRecs,
         cuppingNotes: detailsFromPage.cuppingNotes,
-        region: detailsFromPage.details.region?.replace('Region:', '').trim() || null,
-        processing: detailsFromPage.details.processing?.replace('Processing:', '').trim() || null,
+        region: detailsFromPage.details.region?.replace(/^[^:]*:\s*/, '').trim() || null,
+        processing: detailsFromPage.details.processing?.replace(/^[^:]*:\s*/, '').trim() || null,
       };
     } catch (error) {
       console.error(`Error scraping ${url}:`, error);
