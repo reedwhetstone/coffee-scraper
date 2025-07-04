@@ -198,19 +198,19 @@ Respond only with the JSON object, no additional text.
     }
 
     const aiDescriptionPrompt = `
-Create a fair-use compliant, factual coffee description of approximately 50 words.
+Create a fair-use compliant, factual coffee description of approximately 75 words.
 
 STRICT FAIR-USE REQUIREMENTS:
 - Quote NO MORE than 6 consecutive words from the source text
-- Use factual, informative tone - NO marketing language or superlatives
-- Focus on objective information: processing, origin, varietals, elevation, flavor notes
+- Use factual, informative data - If using marketing language or superlatives, they MUST be unique from the source text
+- Focus on objective information: processing, origin, varietals, elevation, farm history, etc.
 - Preserve unique origin stories and farm details when present
 - Create transformative content that expresses facts in new language
 
 SOURCE MATERIAL:
 ""${availableDescriptions}""
 
-Generate a 50-word description that captures the essential factual information while respecting fair-use guidelines. Focus on coffee characteristics, processing methods, origin details, and technical specifications.
+Generate a description 75-word or less that captures the essential factual information while respecting fair-use guidelines. Focus on coffee characteristics, processing methods, origin details, and technical specifications.
 
 Respond with only the description text, no additional formatting or explanation.
 `;
@@ -223,9 +223,9 @@ Respond with only the description text, no additional formatting or explanation.
 
     const description = response.data.trim();
 
-    // Validate word count (target ~50 words, allow 40-60 range)
+    // Validate word count (target ~75 words, allow 20 to 100 range)
     const wordCount = description.split(/\s+/).length;
-    if (wordCount < 30 || wordCount > 70) {
+    if (wordCount < 20 || wordCount > 100) {
       return {
         success: false,
         error: `Generated description has ${wordCount} words, outside acceptable range (30-70 words)`,
