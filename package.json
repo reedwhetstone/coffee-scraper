@@ -17,6 +17,7 @@
     "scrape-local": "tsx ./scrape/newcoffeescript.ts",
     "update-prices": "tsx ./scrape/updatePrices.ts",
     "backfill-ai-descriptions": "tsx ./scrape/backfillAiDescriptions.ts",
-    "backfill-ai-tasting-notes": "tsx ./scrape/backfillAiTastingNotes.ts"
+    "backfill-ai-tasting-notes": "tsx ./scrape/backfillAiTastingNotes.ts",
+    "generate-embeddings": "tsx ./scrape/generateEmbeddings.ts"
   }
 }

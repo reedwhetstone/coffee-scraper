@@ -32,6 +32,13 @@ npm run scrape bodhi_leaf
 npm run scrape showroom_coffee
 ```
 
+to run the embeddings
+
+```bash
+npm run generate-embeddings generate
+npm run generate-embeddings status
+```
+
 ## Recent Updates
 
 - Add retry mechanism for failed URL collection

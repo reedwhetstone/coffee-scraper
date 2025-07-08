@@ -13,6 +13,7 @@ import stealth from 'puppeteer-extra-plugin-stealth';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import DataCleaner from './dataCleaner.js';
+import { EmbeddingService } from './embeddingService.js';
 
 // Use the stealth plugin
 chromium.use(stealth());
@@ -1545,6 +1546,46 @@ async function updateDatabase(source: CoffeeSource) {
         source.name,
         `Added ${newProductsAdded} new products to the database`
       );
+
+      // Step 7: Generate embeddings for newly added products
+      if (newProductsAdded > 0) {
+        logger.addLog('Step 7: Embedding Generation', source.name, `Generating embeddings for ${newProductsAdded} new products`);
+        
+        try {
+          const embeddingService = new EmbeddingService(logger);
+          
+          // Get the newly added products for embedding generation
+          const { data: newProducts, error: fetchError } = await supabase
+            .from('coffee_catalog')
+            .select('*')
+            .eq('source', source.name)
+            .eq('stocked', true)
+            .gte('stocked_date', new Date(Date.now() - 60000).toISOString()); // Products added in the last minute
+
+          if (fetchError) {
+            logger.addLog('Error', source.name, `Error fetching new products for embedding generation: ${fetchError.message}`);
+          } else if (newProducts && newProducts.length > 0) {
+            const embeddingResult = await embeddingService.processBulkEmbeddings(newProducts, false);
+            
+            if (embeddingResult.success) {
+              logger.addLog(
+                'Step 7: Embedding Generation',
+                source.name,
+                `Successfully generated embeddings for ${embeddingResult.processed} products (${embeddingResult.totalChunks} chunks)`
+              );
+            } else {
+              logger.addLog('Warning', source.name, 'Some embedding generation failed');
+            }
+
+            if (embeddingResult.errors.length > 0) {
+              logger.addLog('Warning', source.name, `Embedding errors: ${embeddingResult.errors.join('; ')}`);
+            }
+          }
+        } catch (error) {
+          logger.addLog('Error', source.name, `Error in embedding generation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          // Don't fail the entire scrape if embedding generation fails
+        }
+      }
     }
 
     logger.addLog('Step 6: Completion', source.name, 'Database update complete');
