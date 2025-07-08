@@ -385,6 +385,93 @@ export class EmbeddingService {
   }
 
   /**
+   * Clean up embeddings for coffees that are no longer stocked
+   */
+  async cleanupUnstockedEmbeddings(): Promise<{
+    success: boolean;
+    removedCoffees: number;
+    removedChunks: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let removedCoffees = 0;
+    let removedChunks = 0;
+
+    try {
+      // Get all coffee IDs that have embeddings
+      const { data: chunksData, error: chunksError } = await this.supabase
+        .from('coffee_chunks')
+        .select('coffee_id')
+        .order('coffee_id');
+
+      if (chunksError) {
+        throw new Error(`Failed to fetch chunks: ${chunksError.message}`);
+      }
+
+      if (!chunksData || chunksData.length === 0) {
+        this.log('Info', 'EmbeddingService', 'No chunks found to clean up');
+        return { success: true, removedCoffees: 0, removedChunks: 0, errors: [] };
+      }
+
+      // Get unique coffee IDs that have embeddings
+      const coffeeIdsWithEmbeddings = [...new Set(chunksData.map(chunk => chunk.coffee_id))];
+
+      // Check which of these coffees are no longer stocked
+      const { data: stockedCoffees, error: stockedError } = await this.supabase
+        .from('coffee_catalog')
+        .select('id')
+        .in('id', coffeeIdsWithEmbeddings)
+        .eq('stocked', true);
+
+      if (stockedError) {
+        throw new Error(`Failed to fetch stocked coffees: ${stockedError.message}`);
+      }
+
+      const stockedCoffeeIds = new Set(stockedCoffees?.map(coffee => coffee.id) || []);
+      const unstockedCoffeeIds = coffeeIdsWithEmbeddings.filter(id => !stockedCoffeeIds.has(id));
+
+      if (unstockedCoffeeIds.length === 0) {
+        this.log('Info', 'EmbeddingService', 'No unstocked coffee embeddings to clean up');
+        return { success: true, removedCoffees: 0, removedChunks: 0, errors: [] };
+      }
+
+      this.log('Info', 'EmbeddingService', `Found ${unstockedCoffeeIds.length} unstocked coffees with embeddings to clean up`);
+
+      // Count chunks before deletion
+      const { data: chunksToDelete, error: countError } = await this.supabase
+        .from('coffee_chunks')
+        .select('id')
+        .in('coffee_id', unstockedCoffeeIds);
+
+      if (countError) {
+        throw new Error(`Failed to count chunks to delete: ${countError.message}`);
+      }
+
+      removedChunks = chunksToDelete?.length || 0;
+
+      // Delete chunks for unstocked coffees
+      const { error: deleteError } = await this.supabase
+        .from('coffee_chunks')
+        .delete()
+        .in('coffee_id', unstockedCoffeeIds);
+
+      if (deleteError) {
+        throw new Error(`Failed to delete chunks: ${deleteError.message}`);
+      }
+
+      removedCoffees = unstockedCoffeeIds.length;
+      this.log('Info', 'EmbeddingService', `✓ Cleaned up ${removedChunks} chunks for ${removedCoffees} unstocked coffees`);
+
+      return { success: true, removedCoffees, removedChunks, errors };
+    } catch (error) {
+      const errorMsg = `Error cleaning up unstocked embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      errors.push(errorMsg);
+      this.log('Error', 'EmbeddingService', errorMsg);
+      return { success: false, removedCoffees, removedChunks, errors };
+    }
+  }
+
+  /**
    * Bulk process multiple coffees for embeddings
    */
   async processBulkEmbeddings(coffees: CoffeeData[], forceRegenerate: boolean = false): Promise<{

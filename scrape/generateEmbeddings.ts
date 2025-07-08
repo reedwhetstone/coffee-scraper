@@ -30,8 +30,8 @@ class EmbeddingGenerator {
     console.log('Options:', { source, forceRegenerate, limit, coffeeId });
 
     try {
-      // Build query
-      let query = supabase.from('coffee_catalog').select('*');
+      // Build query - Only process stocked coffees
+      let query = supabase.from('coffee_catalog').select('*').eq('stocked', true);
 
       // Filter by source if specified
       if (source) {
@@ -55,11 +55,11 @@ class EmbeddingGenerator {
       }
 
       if (!coffees || coffees.length === 0) {
-        console.log('❌ No coffees found matching criteria');
+        console.log('❌ No stocked coffees found matching criteria');
         return;
       }
 
-      console.log(`📊 Found ${coffees.length} coffees to process`);
+      console.log(`📊 Found ${coffees.length} stocked coffees to process`);
 
       // Process embeddings - let the embedding service handle existing check
       console.log(`🔄 Processing ${coffees.length} coffees...`);

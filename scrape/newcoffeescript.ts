@@ -55,7 +55,25 @@ class LogCollector {
     errors: string[]; 
     warnings: string[];
     success: boolean;
+    embeddingGenerated: number;
+    embeddingChunks: number;
+    embeddingsCleaned: number;
+    chunksRemoved: number;
+    aiDescriptionsGenerated: number;
+    aiTastingNotesGenerated: number;
   }> = {};
+  
+  // Global summary stats across all sources
+  private globalSummary = {
+    totalEmbeddingGenerated: 0,
+    totalEmbeddingChunks: 0,
+    totalEmbeddingsCleaned: 0,
+    totalChunksRemoved: 0,
+    totalAiDescriptionsGenerated: 0,
+    totalAiTastingNotesGenerated: 0,
+    sourcesProcessed: 0,
+    sourcesSuccessful: 0,
+  };
 
   // Add a log entry for a specific step and source
   addLog(step: string, source: string, message: string) {
@@ -76,7 +94,13 @@ class LogCollector {
         updatedProducts: 0,
         errors: [],
         warnings: [],
-        success: false
+        success: false,
+        embeddingGenerated: 0,
+        embeddingChunks: 0,
+        embeddingsCleaned: 0,
+        chunksRemoved: 0,
+        aiDescriptionsGenerated: 0,
+        aiTastingNotesGenerated: 0,
       };
     }
 
@@ -108,6 +132,40 @@ class LogCollector {
       this.summaryData[source].success = true;
     }
 
+    // Track embedding generation
+    if (message.includes('Successfully generated embeddings for') && message.includes('products')) {
+      const match = message.match(/Successfully generated embeddings for (\d+) products \((\d+) chunks\)/);
+      if (match) {
+        this.summaryData[source].embeddingGenerated = parseInt(match[1]);
+        this.summaryData[source].embeddingChunks = parseInt(match[2]);
+      }
+    }
+
+    // Track embedding cleanup
+    if (message.includes('Cleaned up') && message.includes('chunks for') && message.includes('unstocked coffees')) {
+      const match = message.match(/Cleaned up (\d+) chunks for (\d+) unstocked coffees/);
+      if (match) {
+        this.summaryData[source].chunksRemoved = parseInt(match[1]);
+        this.summaryData[source].embeddingsCleaned = parseInt(match[2]);
+      }
+    }
+
+    // Track AI descriptions
+    if (message.includes('AI descriptions generated for') && message.includes('products')) {
+      const match = message.match(/AI descriptions generated for (\d+) products/);
+      if (match) {
+        this.summaryData[source].aiDescriptionsGenerated = parseInt(match[1]);
+      }
+    }
+
+    // Track AI tasting notes
+    if (message.includes('AI tasting notes generated for') && message.includes('products')) {
+      const match = message.match(/AI tasting notes generated for (\d+) products/);
+      if (match) {
+        this.summaryData[source].aiTastingNotesGenerated = parseInt(match[1]);
+      }
+    }
+
     // Only print errors and warnings to console during execution
     if (step === 'Error' || step === 'Warning') {
       console.log(`[${source}] ${step}: ${message}`);
@@ -120,6 +178,10 @@ class LogCollector {
 
     const sources = Object.keys(this.summaryData);
     
+    // Calculate global totals
+    this.globalSummary.sourcesProcessed = sources.length;
+    this.globalSummary.sourcesSuccessful = sources.filter(s => this.summaryData[s].success).length;
+    
     for (const source of sources) {
       const data = this.summaryData[source];
       const status = data.success ? '✓' : '✗';
@@ -128,6 +190,23 @@ class LogCollector {
       console.log(`  Products found: ${data.productsFound}`);
       console.log(`  New products added: ${data.newProducts}`);
       console.log(`  Products updated: ${data.updatedProducts}`);
+      
+      // Add embedding information if any
+      if (data.embeddingGenerated > 0) {
+        console.log(`  Embeddings generated: ${data.embeddingGenerated} products (${data.embeddingChunks} chunks)`);
+      }
+      
+      if (data.embeddingsCleaned > 0) {
+        console.log(`  Embeddings cleaned: ${data.embeddingsCleaned} unstocked coffees (${data.chunksRemoved} chunks removed)`);
+      }
+      
+      if (data.aiDescriptionsGenerated > 0) {
+        console.log(`  AI descriptions generated: ${data.aiDescriptionsGenerated} products`);
+      }
+      
+      if (data.aiTastingNotesGenerated > 0) {
+        console.log(`  AI tasting notes generated: ${data.aiTastingNotesGenerated} products`);
+      }
       
       if (data.errors.length > 0) {
         console.log(`  Errors (${data.errors.length}):`);
@@ -140,9 +219,74 @@ class LogCollector {
       }
       
       console.log('');
+      
+      // Add to global totals
+      this.globalSummary.totalEmbeddingGenerated += data.embeddingGenerated;
+      this.globalSummary.totalEmbeddingChunks += data.embeddingChunks;
+      this.globalSummary.totalEmbeddingsCleaned += data.embeddingsCleaned;
+      this.globalSummary.totalChunksRemoved += data.chunksRemoved;
+      this.globalSummary.totalAiDescriptionsGenerated += data.aiDescriptionsGenerated;
+      this.globalSummary.totalAiTastingNotesGenerated += data.aiTastingNotesGenerated;
     }
 
     console.log('===== END OF SUMMARY =====\n');
+    
+    // Print function summary
+    this.printFunctionSummary();
+  }
+
+  // Print comprehensive function summary
+  printFunctionSummary() {
+    console.log('===== FUNCTION EXECUTION SUMMARY =====\n');
+    
+    console.log('🔧 SCRAPER OPERATIONS:');
+    console.log(`  Sources processed: ${this.globalSummary.sourcesProcessed}`);
+    console.log(`  Sources successful: ${this.globalSummary.sourcesSuccessful}/${this.globalSummary.sourcesProcessed}`);
+    
+    const totalProducts = Object.values(this.summaryData).reduce((sum, data) => sum + data.productsFound, 0);
+    const totalNewProducts = Object.values(this.summaryData).reduce((sum, data) => sum + data.newProducts, 0);
+    const totalUpdatedProducts = Object.values(this.summaryData).reduce((sum, data) => sum + data.updatedProducts, 0);
+    
+    console.log(`  Total products found: ${totalProducts}`);
+    console.log(`  Total new products added: ${totalNewProducts}`);
+    console.log(`  Total products updated: ${totalUpdatedProducts}`);
+    
+    console.log('\n🤖 AI SERVICES:');
+    if (this.globalSummary.totalAiDescriptionsGenerated > 0) {
+      console.log(`  AI descriptions generated: ${this.globalSummary.totalAiDescriptionsGenerated} products`);
+    } else {
+      console.log(`  AI descriptions generated: 0 products`);
+    }
+    
+    if (this.globalSummary.totalAiTastingNotesGenerated > 0) {
+      console.log(`  AI tasting notes generated: ${this.globalSummary.totalAiTastingNotesGenerated} products`);
+    } else {
+      console.log(`  AI tasting notes generated: 0 products`);
+    }
+    
+    console.log('\n🔍 EMBEDDING SERVICES:');
+    if (this.globalSummary.totalEmbeddingGenerated > 0) {
+      console.log(`  Embeddings generated: ${this.globalSummary.totalEmbeddingGenerated} products (${this.globalSummary.totalEmbeddingChunks} chunks)`);
+    } else {
+      console.log(`  Embeddings generated: 0 products (0 chunks)`);
+    }
+    
+    if (this.globalSummary.totalEmbeddingsCleaned > 0) {
+      console.log(`  Embeddings cleaned: ${this.globalSummary.totalEmbeddingsCleaned} unstocked coffees (${this.globalSummary.totalChunksRemoved} chunks removed)`);
+    } else {
+      console.log(`  Embeddings cleaned: 0 unstocked coffees (0 chunks removed)`);
+    }
+    
+    console.log('\n🧹 MAINTENANCE OPERATIONS:');
+    console.log(`  Database cleanup: ${this.globalSummary.totalEmbeddingsCleaned > 0 ? 'Performed' : 'No cleanup needed'}`);
+    
+    const totalErrors = Object.values(this.summaryData).reduce((sum, data) => sum + data.errors.length, 0);
+    const totalWarnings = Object.values(this.summaryData).reduce((sum, data) => sum + data.warnings.length, 0);
+    
+    console.log(`  Total errors: ${totalErrors}`);
+    console.log(`  Total warnings: ${totalWarnings}`);
+    
+    console.log('\n===== END OF FUNCTION SUMMARY =====\n');
   }
 }
 
@@ -1547,14 +1691,31 @@ async function updateDatabase(source: CoffeeSource) {
         `Added ${newProductsAdded} new products to the database`
       );
 
-      // Step 7: Generate embeddings for newly added products
-      if (newProductsAdded > 0) {
-        logger.addLog('Step 7: Embedding Generation', source.name, `Generating embeddings for ${newProductsAdded} new products`);
+      // Step 7: Generate embeddings for newly added products and clean up unstocked embeddings
+      try {
+        const embeddingService = new EmbeddingService(logger);
         
-        try {
-          const embeddingService = new EmbeddingService(logger);
+        // First, clean up embeddings for unstocked coffees
+        logger.addLog('Step 7: Embedding Cleanup', source.name, 'Cleaning up embeddings for unstocked coffees');
+        const cleanupResult = await embeddingService.cleanupUnstockedEmbeddings();
+        
+        if (cleanupResult.success && cleanupResult.removedCoffees > 0) {
+          logger.addLog(
+            'Step 7: Embedding Cleanup',
+            source.name,
+            `Cleaned up ${cleanupResult.removedChunks} chunks for ${cleanupResult.removedCoffees} unstocked coffees`
+          );
+        }
+
+        if (cleanupResult.errors.length > 0) {
+          logger.addLog('Warning', source.name, `Cleanup errors: ${cleanupResult.errors.join('; ')}`);
+        }
+
+        // Then, generate embeddings for newly added products
+        if (newProductsAdded > 0) {
+          logger.addLog('Step 7: Embedding Generation', source.name, `Generating embeddings for ${newProductsAdded} new products`);
           
-          // Get the newly added products for embedding generation
+          // Get the newly added products for embedding generation (only stocked ones)
           const { data: newProducts, error: fetchError } = await supabase
             .from('coffee_catalog')
             .select('*')
@@ -1581,10 +1742,10 @@ async function updateDatabase(source: CoffeeSource) {
               logger.addLog('Warning', source.name, `Embedding errors: ${embeddingResult.errors.join('; ')}`);
             }
           }
-        } catch (error) {
-          logger.addLog('Error', source.name, `Error in embedding generation: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          // Don't fail the entire scrape if embedding generation fails
         }
+      } catch (error) {
+        logger.addLog('Error', source.name, `Error in embedding operations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Don't fail the entire scrape if embedding operations fail
       }
     }
 
